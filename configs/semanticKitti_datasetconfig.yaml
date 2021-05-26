@@ -1,0 +1,43 @@
+# Config format schema number
+format_version: 4
+
+###################
+## Model options
+model_params:
+  model_architecture: "cylinder_asym"
+
+  output_shape:
+    - 480
+    - 360
+    - 32
+
+  fea_dim: 9
+  out_fea_dim: 256
+  num_class: 20
+  num_input_features: 16
+  use_norm: True
+  init_size: 32
+
+
+###################
+## Dataset options
+pc_dataset_params:
+  data_path: "/media/TrainDataset/SemanticKitti/sequences/"
+
+graph_dataset_params:
+  k_rsc_g: 16
+  k_rsc_rsc: 16
+  n_centroids: 30000
+
+
+
+
+###################
+## Train params
+train_params:
+  model_load_path: "./model_load_dir/model_load.pt"
+  model_save_path: "./model_save_dir/model_save.pt"
+  checkpoint_every_n_steps: 4599
+  max_num_epochs: 40
+  eval_every_n_steps: 4599
+  learning_rate: 0.001
