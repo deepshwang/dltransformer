@@ -8,6 +8,28 @@ import numpy as np
 import math
 import sys, os
 
+class DLPTLayer_PreLN(nn.Module):
+	'''
+	Decoupled Local Point Transformer Layer
+	'''
+	def __init__(self, d_config, downsample_ratio=4, kmeans_ratio=16, expansion_ratio=2, layer_norm=True):
+		super(DLPTLayer_PreLN, self).__init__()
+		d_feat_in = d_config[0]
+		d_pos_embed = d_config[1]
+		d_feat_hid = d_config[2]
+		d_feat_embed = d_config[3]
+		self.DLPTBlock1 = DLPTBlock_PreLN(kmeans_ratio=kmeans_ratio, d_feat=d_feat_in, d_pos_embed=d_pos_embed, d_embed=d_feat_hid, layer_norm=layer_norm)
+		self.DLPTBlock2 = DLPTBlock_PreLN(kmeans_ratio=expansion_ratio*kmeans_ratio, d_feat=d_feat_hid, d_pos_embed=d_pos_embed, d_embed=d_feat_embed, layer_norm=layer_norm)
+		self.FPSDownSample = FPS(downsample_ratio=downsample_ratio)
+
+
+	def forward(self, pos, feat, fps_preprocess=None, cluster_batchdict_preprocess_1=None, cluster_batchdict_preprocess_2=None):
+		feat = self.DLPTBlock1(pos, feat, cluster_batchdict_preprocess_1)
+		feat = self.DLPTBlock2(pos, feat, cluster_batchdict_preprocess_2)
+		pos, feat = self.FPSDownSample(pos, feat, fps_preprocess)
+		return pos, feat
+
+
 
 class DLPTLayer(nn.Module):
 	'''
@@ -74,7 +96,8 @@ class DLPTBlock(nn.Module):
 		self.dlsa = DLSABlock(d_embed=d_embed)
 		self.ln = None
 		if layer_norm:
-			self.ln = nn.LayerNorm(self.d_embed)
+			self.ln1 = nn.LayerNorm(self.d_embed)
+			self.ln2 = nn.LayerNorm(self.d_embed)
 		self.ff = nn.Linear(d_embed, d_embed)
 
 
@@ -88,13 +111,53 @@ class DLPTBlock(nn.Module):
 		# [2] Skip connection + Layer Norm
 		feat_out = h_pos + feat_out
 		if self.ln is not None:
-			feat_out = self.ln(feat_out) 
+			feat_out = self.ln1(feat_out) 
 		
 		# [3] Feed Forward & Skip connection + Layer Norm
 		final_out = self.ff(feat_out)
 		final_out = final_out + feat_out
 		if self.ln is not None:
-			final_out = self.ln(final_out)
+			final_out = self.ln2(final_out)
+
+		return feat_out
+
+
+class DLPTBlock_PreLN(nn.Module):
+	'''
+	Decoupled Local Point Transformer Block with Pre Layer-Normalization
+	'''
+	def __init__(self, kmeans_ratio=16, d_feat=3, d_pos_embed=10, d_embed=32, layer_norm=True):
+		super(DLPTBlock_PreLN, self).__init__()
+		self.kmeans_ratio = kmeans_ratio
+		self.d_pos = 3
+		self.d_pos_embed = d_pos_embed
+		self.d_embed = d_embed
+		self.lpe = LPEBlock(d_feat=d_feat, d_pos_embed=d_pos_embed, d_embed=d_embed)
+		self.dlsa = DLSABlock(d_embed=d_embed)
+		self.ln = None
+		if layer_norm:
+			self.ln11 = nn.LayerNorm(self.d_embed)
+			self.ln12 = nn.LayerNorm(self.d_embed)
+			self.ln2 = nn.LayerNorm(self.d_embed)
+		self.ff = nn.Linear(d_embed, d_embed)
+
+
+	def forward(self, pos, feat, cluster_batchdict):
+		# [1] Decoupled Local Self Attention
+		if cluster_batchdict is None:
+			cluster_batchdict = get_cluster_idxes(pos, kmeans_ratio=self.kmeans_ratio)
+		h_pos, h_geo = self.lpe(pos, feat, cluster_batchdict)
+		h_pos_dlsa = self.ln11(h_pos)
+		h_geo_dlsa = self.ln12(h_geo)
+		feat_out = self.dlsa(h_pos_dlsa, h_geo_dlsa, cluster_batchdict)
+		
+		# [2] Skip connection 
+		feat_out = h_pos + feat_out
+ 
+		
+		# [3] Feed Forward & Skip connection + Layer Norm
+		final_out = self.ln2(self.ff(feat_out))
+		final_out = final_out + feat_out
 
 		return feat_out
 		
@@ -130,6 +193,7 @@ class DLSABlock(nn.Module):
 				attn[b][cluster_idx] = out
 		attn = self.linear_out(attn)
 		return attn
+
 
 
 

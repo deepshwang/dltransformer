@@ -59,6 +59,10 @@ def argument_parser():
 						type=str,
 						default='Loss Plot')
 
+	parser.add_argument('--pre_ln',
+						type=bool,
+						default=False)
+
 	args = parser.parse_args()
 
 	return args

@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 
-from models.modules import DLPTNet_cls
+from models.modules import DLPTNet_cls, DLPTNet_PreLN_cls
 from dataset.ModelNet40 import ModelNet40DataLoader
 from dataset.transforms import T_modelnet_train as T_train
 from dataset.transforms import T_modelnet_test as T_test
@@ -28,7 +28,7 @@ class Trainer():
 
 	def train(self):
 		self.vis = visdom.Visdom()
-		loss_plt = self.vis.line(Y=torch.Tensor(1).zero_(),opts=dict(title='loss_tracker', legend=['loss'], showlegend=True))
+		loss_plt = self.vis.line(Y=torch.Tensor(1).zero_(),opts=dict(title=self.args.plot_name, legend=['loss'], showlegend=True))
 		best_train_acc = 0.0
 		self.model = self.model.to(self.args.device)
 
@@ -119,7 +119,10 @@ def main(args):
 										   train=False,
 										   transforms=T_test)
 
-	model = DLPTNet_cls(open_yaml(args.DLPT_config)['layer_params'][args.model_config_type], c=40)
+	if args.pre_ln:
+		model = DLPTNet_PreLN_cls(open_yaml(args.DLPT_config)['layer_params'][args.model_config_type], c=40)
+	else:
+		model = DLPTNet_cls(open_yaml(args.DLPT_config)['layer_params'][args.model_config_type], c=40)
 
 	optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
