@@ -16,12 +16,13 @@ import visdom
 
 
 class Trainer():
-	def __init__(self, model, train_dataloader, test_dataloader, criterion, optimizer, epochs, args):
+	def __init__(self, model, train_dataloader, test_dataloader, criterion, optimizer, scheduler, epochs, args):
 		self.model = model
 		self.train_dataloader = train_dataloader
 		self.test_dataloader = test_dataloader
 		self.criterion = criterion
 		self.optimizer = optimizer
+		self.scheduler = scheduler
 		self.epochs = epochs
 		self.args = args
 
@@ -52,12 +53,14 @@ class Trainer():
 				self.optimizer.zero_grad()
 				loss.backward()
 				self.optimizer.step()
-				
+
 				running_loss += loss.item()
 				if (i+1) % 1000 == 0:    
 					print('[%d, %5d / %d] loss: %.3f' %
 						(e + 1, i + 1, len(self.train_dataloader) ,running_loss/1000))
 					running_loss = 0.0
+
+			self.scheduler.step()
 
 			# Test
 			total = 0.0
@@ -65,16 +68,15 @@ class Trainer():
 			self.model.eval()
 			with torch.no_grad():
 				for i, (points, labels, cluster_idx, ds_idx) in enumerate(self.test_dataloader):
-					if i == 0:
-						points = points.to(self.args.device)
-						labels = labels.to(self.args.device)
-						ds_idx = [d.to(self.args.device) for d in ds_idx] 
+					points = points.to(self.args.device)
+					labels = labels.to(self.args.device)
+					ds_idx = [d.to(self.args.device) for d in ds_idx] 
 
-						outputs = self.model(points, cluster_idx, ds_idx)
-						loss = self.criterion(outputs, labels)
-						_, preds = torch.max(outputs, dim=1)
-						total += labels.size(0)
-						correct += (preds == labels).sum().item()
+					outputs = self.model(points, cluster_idx, ds_idx)
+					loss = self.criterion(outputs, labels)
+					_, preds = torch.max(outputs, dim=1)
+					total += labels.size(0)
+					correct += (preds == labels).sum().item()
 
 
 				train_acc = (100 * correct / total)
@@ -117,9 +119,11 @@ def main(args):
 										   train=False,
 										   transforms=T_test)
 
-	model = DLPTNet_cls(open_yaml(args.DLPT_config)['layer_params']['a'], c=40)
+	model = DLPTNet_cls(open_yaml(args.DLPT_config)['layer_params'][args.model_config_type], c=40)
 
-	optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+	optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+
+	scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, verbose=True)
 
 	criterion = torch.nn.CrossEntropyLoss()
 
@@ -128,10 +132,12 @@ def main(args):
 					  test_dataloader=test_dataloader,
 					  criterion=criterion,
 					  optimizer=optimizer,
+					  scheduler=scheduler,
 					  epochs=args.epochs,
 					  args=args)
 
 	trainer.train()
+
 
 
 

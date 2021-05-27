@@ -1,6 +1,22 @@
+#layer_params/layer -> [d_feat_in, d_pos_embed, d_feat_hid, d_feat_embed]
 layer_params:
-  a:
-    layer: [[3, 16, 32], [32, 32, 64], [64, 64, 128], [128, 128, 256]]
+  a:         
+    d_config: [[3, 16, 16, 32], [32, 32, 32, 64], [64, 64, 64, 128], [128, 128, 128, 256]]
     ds_ratio: 4
     k: 16
     expansion_ratio: 2
+    layer_norm: True
+
+  b:
+    d_config: [32, [32, 32, 64, 64], [64, 64, 128, 128], [128, 128, 256, 256], [256, 256, 512, 512]]
+    ds_ratio: 4
+    k: 16
+    expansion_ratio: 2
+    layer_norm: True
+
+  c:
+    d_config: [32, [32, 32, 64, 64], [64, 64, 128, 128], [128, 128, 256, 256], [256, 256, 512, 512]]
+    ds_ratio: 4
+    k: 16
+    expansion_ratio: 2
+    layer_norm: True

@@ -31,9 +31,25 @@ def argument_parser():
 	parser.add_argument('--num_workers', 
 						default=4)
 
+	parser.add_argument('--step_size', 
+						type=int,
+						default=20)
+
+	parser.add_argument('--lr', 
+						type=float,
+						default=1e-4)
+
+	parser.add_argument('--gamma', 
+						type=float,
+						default=0.5)
+
 	parser.add_argument('--DLPT_config',
 						type=str,
 						default='./configs/DLPT_modelconfig.yaml')
+
+	parser.add_argument('--model_config_type',
+						type=str,
+						default='b')
 
 	parser.add_argument('--model_save_name',
 						type=str,

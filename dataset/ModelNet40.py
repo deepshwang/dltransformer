@@ -226,10 +226,12 @@ def ModelNet40DataLoader(args, num_points, shuffle, train, transforms):
         batch_size = args.train_batch_size
     else:
         batch_size = args.test_batch_size
+
+
     dataloader = data.DataLoader(dataset=dataset,
                     batch_size=batch_size,
                     num_workers=args.num_workers,
-                    shuffle=shuffle,
+                    shuffle=True,
                     collate_fn=dataset.collate_fn)
     return dataloader
 

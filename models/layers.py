@@ -13,10 +13,14 @@ class DLPTLayer(nn.Module):
 	'''
 	Decoupled Local Point Transformer Layer
 	'''
-	def __init__(self, d_feat_in=3, d_feat_hid=32, d_feat_out=64, downsample_ratio=4, kmeans_ratio=16, expansion_ratio=2):
+	def __init__(self, d_config, downsample_ratio=4, kmeans_ratio=16, expansion_ratio=2, layer_norm=True):
 		super(DLPTLayer, self).__init__()
-		self.DLPTBlock1 = DLPTBlock(kmeans_ratio=kmeans_ratio, d_feat=d_feat_in, d_pos_embed=d_feat_in, d_embed=d_feat_hid)
-		self.DLPTBlock2 = DLPTBlock(kmeans_ratio=expansion_ratio*kmeans_ratio, d_feat=d_feat_hid, d_pos_embed=d_feat_hid, d_embed=d_feat_out)
+		d_feat_in = d_config[0]
+		d_pos_embed = d_config[1]
+		d_feat_hid = d_config[2]
+		d_feat_embed = d_config[3]
+		self.DLPTBlock1 = DLPTBlock(kmeans_ratio=kmeans_ratio, d_feat=d_feat_in, d_pos_embed=d_pos_embed, d_embed=d_feat_hid, layer_norm=layer_norm)
+		self.DLPTBlock2 = DLPTBlock(kmeans_ratio=expansion_ratio*kmeans_ratio, d_feat=d_feat_hid, d_pos_embed=d_pos_embed, d_embed=d_feat_embed, layer_norm=layer_norm)
 		self.FPSDownSample = FPS(downsample_ratio=downsample_ratio)
 
 
@@ -60,7 +64,7 @@ class DLPTBlock(nn.Module):
 	'''
 	Decoupled Local Point Transformer Block
 	'''
-	def __init__(self, kmeans_ratio=16, d_feat=3, d_pos_embed=10, d_embed=32):
+	def __init__(self, kmeans_ratio=16, d_feat=3, d_pos_embed=10, d_embed=32, layer_norm=True):
 		super(DLPTBlock, self).__init__()
 		self.kmeans_ratio = kmeans_ratio
 		self.d_pos = 3
@@ -68,7 +72,9 @@ class DLPTBlock(nn.Module):
 		self.d_embed = d_embed
 		self.lpe = LPEBlock(d_feat=d_feat, d_pos_embed=d_pos_embed, d_embed=d_embed)
 		self.dlsa = DLSABlock(d_embed=d_embed)
-		self.ln = nn.LayerNorm(self.d_embed)
+		self.ln = None
+		if layer_norm:
+			self.ln = nn.LayerNorm(self.d_embed)
 		self.ff = nn.Linear(d_embed, d_embed)
 
 
@@ -81,13 +87,14 @@ class DLPTBlock(nn.Module):
 		
 		# [2] Skip connection + Layer Norm
 		feat_out = h_pos + feat_out
-
-		feat_out = self.ln(feat_out) 
+		if self.ln is not None:
+			feat_out = self.ln(feat_out) 
 		
 		# [3] Feed Forward & Skip connection + Layer Norm
 		final_out = self.ff(feat_out)
 		final_out = final_out + feat_out
-		final_out = self.ln(final_out)
+		if self.ln is not None:
+			final_out = self.ln(final_out)
 
 		return feat_out
 		
@@ -100,9 +107,9 @@ class DLSABlock(nn.Module):
 	'''
 	def __init__(self, d_embed=32):
 		super(DLSABlock, self).__init__()
-		self.project_q = nn.Linear(d_embed, d_embed)
-		self.project_k = nn.Linear(d_embed, d_embed)
-		self.project_v = nn.Linear(d_embed, d_embed)
+		self.project_q = nn.Linear(d_embed, d_embed, bias=False)
+		self.project_k = nn.Linear(d_embed, d_embed, bias=False)
+		self.project_v = nn.Linear(d_embed, d_embed, bias=False)
 		self.d_embed = d_embed
 		self.linear_out = nn.Linear(d_embed, d_embed)
 
