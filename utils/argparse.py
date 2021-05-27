@@ -55,6 +55,10 @@ def argument_parser():
 						type=str,
 						default='./state_dict/best_net.pth')
 
+	parser.add_argument('--plot_name',
+						type=str,
+						default='Loss Plot')
+
 	args = parser.parse_args()
 
 	return args

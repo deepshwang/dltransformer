@@ -34,12 +34,14 @@ class Trainer():
 		self.args = args
 
 	def train(self, rank, world_size):
+		torch.manual_seed(77)
 		print(f"Running basic DDP on rank {rank}.")
 		self.setup(rank, world_size)
 
 		self.vis = visdom.Visdom()
-		loss_plt = self.vis.line(Y=torch.Tensor(1).zero_(),opts=dict(title='loss_tracker', legend=['loss'], showlegend=True))
+		loss_plt = self.vis.line(Y=torch.Tensor(1).zero_(),opts=dict(title=self.args.plot_name + "_rank" + str(rank), legend=['loss'], showlegend=True))
 		best_train_acc = 0.0
+
 		self.model = self.model.to(rank)
 		self.ddp_model = DDP(self.model, device_ids=[rank], find_unused_parameters=True)
 
@@ -48,18 +50,20 @@ class Trainer():
 		self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=self.args.step_size, gamma=self.args.gamma, verbose=True)
 
 
-		sampler = DistributedSampler(self.train_dataset)
+		sampler_train = DistributedSampler(self.train_dataset)
 		self.train_dataloader = self.ModelNet40DataLoaderDDP(args=self.args, 
 															 dataset=self.train_dataset,
-															 sampler=sampler,
+															 sampler=sampler_train,
 															 train=True)
+		self.test_dataloader = self.ModelNet40DataLoaderDDP(args=self.args,
+															dataset=self.test_dataset,
+															train=False)
 
 
 		for e in range(self.epochs):
 			# Train
 			print("Resume Training: ", str(e + 1) , " / ", str(self.epochs))
 			self.ddp_model.train()
-			dist.barrier()
 
 			running_loss = 0.0
 			for i, (points, labels, cluster_idx, ds_idx) in enumerate(self.train_dataloader):
@@ -92,34 +96,37 @@ class Trainer():
 			correct = 0.0
 			self.ddp_model.eval()
 			with torch.no_grad():
-				for i, (points, labels, cluster_idx, ds_idx) in enumerate(self.test_dataloader):
-					points = points.to(rank)
-					labels = labels.to(rank)
-					ds_idx = [d.to(rank) for d in ds_idx] 
+				if rank == 0:
+					for i, (points, labels, cluster_idx, ds_idx) in enumerate(self.test_dataloader):
+						points = points.to(rank)
+						labels = labels.to(rank)
+						ds_idx = [d.to(rank) for d in ds_idx] 
 
-					outputs = self.ddp_model(points, cluster_idx, ds_idx)
-					loss = self.criterion(outputs, labels)
-					_, preds = torch.max(outputs, dim=1)
-					total += labels.size(0)
-					correct += (preds == labels).sum().item()
-
-
-				train_acc = (100 * correct / total)
-				print("[", e + 1, "/ ", self.epochs, "]  Acc: ", train_acc, "%")
+						outputs = self.ddp_model(points, cluster_idx, ds_idx)
+						loss = self.criterion(outputs, labels)
+						_, preds = torch.max(outputs, dim=1)
+						total += labels.size(0)
+						correct += (preds == labels).sum().item()
+						print("Testing: ", i, ' / ', len(self.test_dataloader), end='\r')
 
 
-				if train_acc > best_train_acc:
-					self.save_checkpoint(rank)
-					best_train_acc = train_acc
-					print("MODEL UPGRADED!")
+					train_acc = (100 * correct / total)
+					print("RANK: ", rank)
+					print("[", e + 1, "/ ", self.epochs, "]  Acc: ", train_acc, "%")
+					print(correct, " / ", total)
+
+
+					if train_acc > best_train_acc:
+						self.save_checkpoint(rank)
+						best_train_acc = train_acc
+						print("MODEL UPGRADED!")
+				dist.barrier()
 
 		self.cleanup()
 
 
 	def save_checkpoint(self, rank):
-		if rank == 0:
-			torch.save(self.ddp_model.state_dict(), self.args.model_save_name)
-		dist.barrier()
+		torch.save(self.ddp_model.state_dict(), self.args.model_save_name)
 		return None
 
 

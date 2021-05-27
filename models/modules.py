@@ -72,6 +72,7 @@ class DLPTNet_cls(nn.Module):
 
 	def _reset_parameters(self):
 		"""Xavier Initialization of parameters"""
+		torch.manual_seed(77)
 		for p in self.parameters():
 			if p.dim() > 1:
 				nn.init.xavier_uniform_(p)
