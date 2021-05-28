@@ -98,7 +98,9 @@ class DLPTBlock(nn.Module):
 		if layer_norm:
 			self.ln1 = nn.LayerNorm(self.d_embed)
 			self.ln2 = nn.LayerNorm(self.d_embed)
-		self.ff = nn.Linear(d_embed, d_embed)
+		self.ff = nn.Sequential(nn.Linear(d_embed, d_embed*4),
+								nn.ReLU(),
+								nn.Linear(d_embed*4, d_embed))
 
 
 	def forward(self, pos, feat, cluster_batchdict):
@@ -139,7 +141,10 @@ class DLPTBlock_PreLN(nn.Module):
 			self.ln11 = nn.LayerNorm(self.d_embed)
 			self.ln12 = nn.LayerNorm(self.d_embed)
 			self.ln2 = nn.LayerNorm(self.d_embed)
-		self.ff = nn.Linear(d_embed, d_embed)
+		self.ff = nn.Sequential(nn.Linear(d_embed, d_embed*4),
+								nn.ReLU(),
+								nn.Linear(d_embed*4, d_embed))
+
 
 
 	def forward(self, pos, feat, cluster_batchdict):
@@ -247,7 +252,7 @@ class LPEBlock(nn.Module):
 		return h_pos, h_geo
 
 
-	def _make_embedding_layers(self, d_in, d_out, layer_norm=False, relu=False):
+	def _make_embedding_layers(self, d_in, d_out, layer_norm=True, relu=True):
 		modules=[]
 		modules.append(nn.Linear(d_in, d_out))
 		if layer_norm:

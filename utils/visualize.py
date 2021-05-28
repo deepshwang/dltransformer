@@ -21,8 +21,8 @@ def draw_multi_grid_range(fig, grid_size=20, bv_range=(-60, -60, 60, 60)):
 def draw_points_with_labels(pts, labels):
 
 	fig = mlab.figure(figure=None, bgcolor=(0, 0, 0), fgcolor=(1.0, 1.0, 1.0), engine=None, size=(600, 600))
-	mlab.points3d(pts[:, 0], pts[:, 1], pts[:, 2], np.squeeze(labels/np.max(labels)), mode='point',
-												   					  scale_factor=1, 
+	mlab.points3d(pts[:, 0], pts[:, 1], pts[:, 2], np.squeeze(labels/np.max(labels)), mode='sphere',
+												   					  scale_factor=0.03, scale_mode='none',
 												   					  figure=fig)
 	
 	fig = draw_multi_grid_range(fig, bv_range=(-40, -40, 80, 40))

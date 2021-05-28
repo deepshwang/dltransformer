@@ -80,44 +80,78 @@ def modelnet_debug(args):
 	)
 
 	# dataset = ModelNet40Dataset(num_points=1024, transforms=T)
-	dataloader = ModelNet40DataLoader(args, 1024, True, T)
+
+	# args, num_points, shuffle, train, transforms
+	dataloader = ModelNet40DataLoader(args, 1024, True, True, T)
 	for i , data in enumerate(dataloader):
 		point, label, cluster_idx, downsample_idx = data
+		pdb.set_trace()
+		point, label, cluster_idx, downsample_idx = point[0], label[0], cluster_idx[0], downsample_idx[0]
 		pdb.set_trace()
 		# draw_points_without_labels(point.numpy())
 
 
-def _get_index_file_list(train=True):
-	index_root = '/media/TrainDataset/modelnet40_normal_resampled_cache/index_files'
-	if train:
-		index_root = index_root + "/train"
-	else:
-		index_root = index_root + '/test'
-	cluster_filelist = []
-	downsample_filelist =[]
-	for f in os.listdir(index_root):
-		# num = f.split(".")[0].split("_")[-1]
-		# if len(num) < 4:
-		# 	z_pad = '0' * (4-len(num))
-		# 	num_new = z_pad + num
-		# 	new_f = f.split("_")[0] + "_" + num_new + ".msgpack"
-		# 	os.rename(os.path.join(index_root, f), os.path.join(index_root, new_f))
+def cluster_visualize_debug(args):
+	config = open_yaml('./configs/ModelNet40_labelmapconfig.yaml')
+	
+	T = transforms.Compose(
+	[
+		d_utils.PointcloudToTensor(),
+		# d_utils.PointcloudRotate(axis=np.array([1, 0, 0])),
+		# d_utils.PointcloudScale(),
+		# d_utils.PointcloudTranslate(),
+		d_utils.PointcloudJitter(),
+	]
+	)
 
-		if f[-7:] == 'msgpack':
-			if f[:4] == 'clus':
-				cluster_filelist.append(os.path.join(index_root, f))
-			elif f[:4] == 'down':
-				downsample_filelist.append(os.path.join(index_root, f))
-	cluster_filelist.sort()
-	downsample_filelist.sort()
-	return cluster_filelist, downsample_filelist
+	dataset = ModelNet40Dataset(1024, transforms=T, train=True)
+
+	for i in range(len(dataset)):
+		point, label, cluster_idx, downsample_idx = dataset[i]
+		downsample_idx = downsample_idx.numpy().tolist()[0]
+
+		N = point.shape[0]
+		cluster_a = cluster_idx[0]
+		cluster_b = cluster_idx[1]
+
+		cluster_a_idx = label_cluster_dict(cluster_idx[0], N)
+		cluster_b_idx = label_cluster_dict(cluster_idx[1], N)
+
+		draw_points_with_labels(point[:,:3].numpy(), cluster_a_idx)
+		draw_points_with_labels(point[:,:3].numpy(), cluster_b_idx)
+		point = point[downsample_idx]
+		N = point.shape[0]
+		cluster_c_idx = label_cluster_dict(cluster_idx[2], N)
+		cluster_d_idx = label_cluster_dict(cluster_idx[3], N)
+		draw_points_with_labels(point[:,:3].numpy(), cluster_c_idx)
+		draw_points_with_labels(point[:,:3].numpy(), cluster_d_idx)
 
 
+		point = point[:64, :]
+		N = point.shape[0]
+		cluster_e_idx = label_cluster_dict(cluster_idx[4], N)
+		cluster_f_idx = label_cluster_dict(cluster_idx[5], N)
+		draw_points_with_labels(point[:,:3].numpy(), cluster_e_idx)
+		draw_points_with_labels(point[:,:3].numpy(), cluster_f_idx)
 
+		point = point[:16, :]
+		N = point.shape[0]
+		cluster_g_idx = label_cluster_dict(cluster_idx[6], N)
+		cluster_h_idx = label_cluster_dict(cluster_idx[7], N)
+		draw_points_without_labels(point[:,:3].numpy())
+		draw_points_without_labels(point[:,:3].numpy())
+
+		pdb.set_trace()
+
+def label_cluster_dict(cluster_dict, N):
+	cluster_label = np.zeros(N)
+	for key, value in cluster_dict.items():
+		cluster_label[value] = key
+	return cluster_label
 
 
 if __name__ == '__main__':
 	args = argument_parser()
 	# s3dis_model_debug(args)
-	modelnet_debug(args)
+	cluster_visualize_debug(args)
 	pdb.set_trace()
