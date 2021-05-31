@@ -25,9 +25,7 @@ class DLPTNet_cls(nn.Module):
 		self.ds4 = DLPTLayer(self.d_config[4], self.ds_ratio, self.k, self.expansion_ratio, layer_norm=self.layer_norm)
 		self.classifier = nn.Sequential(nn.Linear(self.d_config[-1][-1], 64),
 										nn.ReLU(),
-										nn.Linear(64, 40),
-										nn.Sigmoid())
-
+										nn.Linear(64, 40))
 		self._reset_parameters()
 
 
@@ -134,6 +132,7 @@ class DLPTNet_PreLN_cls(nn.Module):
 		pos = x[:, :, :3]
 		feat = x[:, :, 3:6]
 		feat = self.ff(feat)
+		pdb.set_trace()
 		pos_ds, feat_ds = self.ds1(pos, feat, ds_pre_1, c_pre_11, c_pre_12)
 		pos_ds, feat_ds = self.ds2(pos_ds, feat_ds, ds_pre_2, c_pre_21, c_pre_22)
 		pos_ds, feat_ds = self.ds3(pos_ds, feat_ds, ds_pre_3, c_pre_31, c_pre_32)

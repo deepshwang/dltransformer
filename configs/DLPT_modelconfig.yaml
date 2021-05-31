@@ -20,3 +20,17 @@ layer_params:
     k: 16
     expansion_ratio: 2
     layer_norm: True
+
+  d:
+    d_config: [32, [32, 32, 64, 64], [64, 64, 128, 128], [128, 128, 256, 256], [256, 256, 512, 512]]
+    ds_ratio: 4
+    k: 16
+    expansion_ratio: 2
+    layer_norm: True
+
+  e:
+    d_config: [32, [32, 32, 64, 64], [64, 64, 128, 128], [128, 128, 256, 256], [256, 256, 512, 512]]
+    ds_ratio: 4
+    k: 4
+    expansion_ratio: 4
+    layer_norm: False

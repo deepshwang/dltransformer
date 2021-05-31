@@ -27,6 +27,7 @@ class DLPTLayer_PreLN(nn.Module):
 		feat = self.DLPTBlock1(pos, feat, cluster_batchdict_preprocess_1)
 		feat = self.DLPTBlock2(pos, feat, cluster_batchdict_preprocess_2)
 		pos, feat = self.FPSDownSample(pos, feat, fps_preprocess)
+		pdb.set_trace()
 		return pos, feat
 
 
@@ -35,7 +36,7 @@ class DLPTLayer(nn.Module):
 	'''
 	Decoupled Local Point Transformer Layer
 	'''
-	def __init__(self, d_config, downsample_ratio=4, kmeans_ratio=16, expansion_ratio=2, layer_norm=True):
+	def __init__(self, d_config, downsample_ratio, kmeans_ratio, expansion_ratio, layer_norm):
 		super(DLPTLayer, self).__init__()
 		d_feat_in = d_config[0]
 		d_pos_embed = d_config[1]
@@ -63,13 +64,27 @@ class FPS(nn.Module):
 	def forward(self, pos, feat, fps_preprocess):
 		B, N, _ = pos.shape
 		if fps_preprocess is not None:
-			fps_preprocess = torch.squeeze(fps_preprocess)
+			fps_preprocess = fps_preprocess.view(B, -1)
 			pos_downsampled = self.gather_by_idx(pos, fps_preprocess)
 			feat_downsampled = self.gather_by_idx(feat, fps_preprocess)
 		else:
 			fp_idx = pt_utils.farthest_point_sample(pos.contiguous(), int(N/self.downsample_ratio))
 			pos_downsampled = self.gather_by_idx(pos, fp_idx)
 			feat_downsampled = self.gather_by_idx(feat, fp_idx)
+
+		# feat_downsampled = []
+		# for b in range(B):
+		# 	p = pos[b,:]
+		# 	f = feat[b,:]
+		# 	p_downsampled = pos_downsampled[b,:]
+
+		# 	k_idx = faissKNN(index=p, query=p_downsampled, k=16)
+		# 	feat_downsampled.append(torch.mean(f[torch.from_numpy(k_idx)], dim=1))
+		# 	# feat_downsampled.append(torch.max(f[torch.from_numpy(k_idx)], dim=1).values)
+
+
+		# feat_downsampled = torch.stack(feat_downsampled)
+
 		return pos_downsampled, feat_downsampled
 
 
@@ -86,7 +101,7 @@ class DLPTBlock(nn.Module):
 	'''
 	Decoupled Local Point Transformer Block
 	'''
-	def __init__(self, kmeans_ratio=16, d_feat=3, d_pos_embed=10, d_embed=32, layer_norm=True):
+	def __init__(self, kmeans_ratio, d_feat, d_pos_embed, d_embed, layer_norm):
 		super(DLPTBlock, self).__init__()
 		self.kmeans_ratio = kmeans_ratio
 		self.d_pos = 3
@@ -94,8 +109,9 @@ class DLPTBlock(nn.Module):
 		self.d_embed = d_embed
 		self.lpe = LPEBlock(d_feat=d_feat, d_pos_embed=d_pos_embed, d_embed=d_embed)
 		self.dlsa = DLSABlock(d_embed=d_embed)
-		self.ln = None
+		self.layer_norm = None
 		if layer_norm:
+			self.layer_norm = layer_norm
 			self.ln1 = nn.LayerNorm(self.d_embed)
 			self.ln2 = nn.LayerNorm(self.d_embed)
 		self.ff = nn.Sequential(nn.Linear(d_embed, d_embed*4),
@@ -112,13 +128,13 @@ class DLPTBlock(nn.Module):
 		
 		# [2] Skip connection + Layer Norm
 		feat_out = h_pos + feat_out
-		if self.ln is not None:
+		if self.layer_norm:
 			feat_out = self.ln1(feat_out) 
 		
 		# [3] Feed Forward & Skip connection + Layer Norm
 		final_out = self.ff(feat_out)
 		final_out = final_out + feat_out
-		if self.ln is not None:
+		if self.layer_norm is not None:
 			final_out = self.ln2(final_out)
 
 		return feat_out
@@ -136,8 +152,9 @@ class DLPTBlock_PreLN(nn.Module):
 		self.d_embed = d_embed
 		self.lpe = LPEBlock(d_feat=d_feat, d_pos_embed=d_pos_embed, d_embed=d_embed)
 		self.dlsa = DLSABlock(d_embed=d_embed)
-		self.ln = None
+		self.layer_norm = None
 		if layer_norm:
+			self.layer_norm = layer_norm
 			self.ln11 = nn.LayerNorm(self.d_embed)
 			self.ln12 = nn.LayerNorm(self.d_embed)
 			self.ln2 = nn.LayerNorm(self.d_embed)
@@ -152,8 +169,11 @@ class DLPTBlock_PreLN(nn.Module):
 		if cluster_batchdict is None:
 			cluster_batchdict = get_cluster_idxes(pos, kmeans_ratio=self.kmeans_ratio)
 		h_pos, h_geo = self.lpe(pos, feat, cluster_batchdict)
-		h_pos_dlsa = self.ln11(h_pos)
-		h_geo_dlsa = self.ln12(h_geo)
+		try:
+			h_pos_dlsa = self.ln11(h_pos)
+			h_geo_dlsa = self.ln12(h_geo)
+		except torch.nn.modules.module.ModuleAttributeError:
+			print("PreLN requires Layer norm. Check if you set layer_norm as false in model configuration yaml")
 		feat_out = self.dlsa(h_pos_dlsa, h_geo_dlsa, cluster_batchdict)
 		
 		# [2] Skip connection 
@@ -282,13 +302,21 @@ class LPEBlock(nn.Module):
 
 
 def faissKMeans(pos, kmeans_ratio):
+	'''
+	Argument:
+		pos (N, C): Non-batched point position tensor
+		kmeans_ratio: number of cluster is determined as int(N/kmeans_ratio)
+	
+	Return:
+		idxs (N, 1): Every point is assigned with a cluster index number
+	'''
+
 	N, C = pos.shape
 	pos = pos.cpu().numpy().astype(np.float32)
-	with HiddenPrints():
-		faiss_kmeans = faiss.Kmeans(d=C, k=int(N/kmeans_ratio), niter=150, verbose=False, gpu=True)
-		faiss_kmeans.min_points_per_centroid=1
-		faiss_kmeans.train(pos)
-		dists, idxs = faiss_kmeans.index.search(pos, 1)
+	faiss_kmeans = faiss.Kmeans(d=C, k=int(N/kmeans_ratio), niter=150, verbose=False, gpu=True)
+	faiss_kmeans.min_points_per_centroid=1
+	faiss_kmeans.train(pos)
+	dists, idxs = faiss_kmeans.index.search(pos, 1)
 	return idxs
 
 def get_cluster_idxes(pos, kmeans_ratio):
@@ -309,13 +337,24 @@ def get_cluster_idxes(pos, kmeans_ratio):
 
 	return cluster_idx_dict_list
 
-class HiddenPrints:
-    def __enter__(self):
-        self._original_stdout = sys.stdout
-        sys.stdout = open(os.devnull, 'w')
+def faissKNN(index, query, k):
+	index = index.cpu().numpy().copy(order='C')
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        sys.stdout.close()
-        sys.stdout = self._original_stdout
+	query = query.cpu().numpy()
+	
+	N = query.shape[0]
+
+	faiss_index = faiss.IndexFlatL2(index.shape[1])
+	faiss_index = faiss.index_cpu_to_all_gpus(faiss_index)
+	faiss_index.add(index)
+
+	_, k_idx = faiss_index.search(query, k)
 
 
+	# neighbor_idx = np.squeeze(k_idx.reshape(1,-1)).astype(np.int64)
+	# node_idx = np.concatenate([(np.ones(k) * (i+1) - 1).astype(np.int64) for i in range(N)], axis=0)
+
+	return k_idx
+
+	# end_time = time.time()
+	# print("Time (sec) to conduct KNN per pc: ", end_time - start_time)

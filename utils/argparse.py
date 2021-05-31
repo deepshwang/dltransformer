@@ -37,7 +37,7 @@ def argument_parser():
 
 	parser.add_argument('--lr', 
 						type=float,
-						default=1e-4)
+						default=1e-1)
 
 	parser.add_argument('--gamma', 
 						type=float,
@@ -63,6 +63,15 @@ def argument_parser():
 						type=bool,
 						default=False)
 
-	args = parser.parse_args()
+	parser.add_argument('--shuffle',
+						type=bool,
+						default=True,
+						help='Whether to shuffle training dataloader')
 
+	parser.add_argument('--sanity_check',
+						type=bool,
+						default=False,
+						help='Whether to train a model to overfit a single batch to see if the model has the capability to learn')
+
+	args = parser.parse_args()
 	return args

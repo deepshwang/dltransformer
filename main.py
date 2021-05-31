@@ -54,11 +54,14 @@ class Trainer():
 				loss.backward()
 				self.optimizer.step()
 
+
 				running_loss += loss.item()
 				if (i+1) % 1000 == 0:    
 					print('[%d, %5d / %d] loss: %.3f' %
 						(e + 1, i + 1, len(self.train_dataloader) ,running_loss/1000))
 					running_loss = 0.0
+
+
 
 			self.scheduler.step()
 
@@ -72,8 +75,8 @@ class Trainer():
 					labels = labels.to(self.args.device)
 					ds_idx = [d.to(self.args.device) for d in ds_idx] 
 
-					outputs = self.model(points, cluster_idx, ds_idx)
-					loss = self.criterion(outputs, labels)
+					outputs = self.model(points)
+					loss = self.criterion(outputs, labels, cluster_idx, ds_idx)
 					_, preds = torch.max(outputs, dim=1)
 					total += labels.size(0)
 					correct += (preds == labels).sum().item()
@@ -89,6 +92,53 @@ class Trainer():
 					print("MODEL UPGRADED!")
 
 
+	def train_single_batch(self):
+		best_train_acc = 0.0
+		self.model = self.model.to(self.args.device)
+		
+		# debug
+		model_prev = None
+		same_block_name = []
+		different_block_name = []
+
+		points, labels, cluster_idx, ds_idx = next(iter(self.train_dataloader))
+
+		for e in range(self.epochs):
+			# Train
+			self.model.train()
+			running_loss = 0.0
+			points = points.to(self.args.device)
+			labels = labels.to(self.args.device)
+			ds_idx = [d.to(self.args.device) for d in ds_idx] 
+
+			outputs = self.model(points, cluster_idx, ds_idx)
+			
+			loss = self.criterion(outputs, labels)
+
+
+			self.optimizer.zero_grad()
+			loss.backward()
+			self.optimizer.step()
+
+
+			# if model_prev is not None:
+			# 	for (name1, p1), (name2, p2) in zip(self.model.named_parameters(), model_prev.named_parameters()):
+			# 		if p1.data.ne(p2.data).sum() == 0:
+			# 			different_block_name.append(name1)
+			# 		else:
+			# 			same_block_name.append(name1)
+			# 	print("different weight name: ")
+			# 	print(different_block_name)
+			# 	print("same weight name: ")
+			# 	print(same_block_name)
+
+
+   
+			print('[%d / %d] loss: %.3f' %
+				(e + 1, self.epochs+1 ,loss.item()))
+
+			self.scheduler.step()
+			model_prev = self.model
 
 
 
@@ -110,19 +160,20 @@ def main(args):
 
 	train_dataloader = ModelNet40DataLoader(args, 
 											num_points=1024,
-											shuffle=True,
+											shuffle=args.shuffle,
 											train=True,
 											transforms=T_train)
 	test_dataloader = ModelNet40DataLoader(args,
 										   num_points=1024,
-										   shuffle=True,
+										   shuffle=False,
 										   train=False,
 										   transforms=T_test)
-
 	if args.pre_ln:
 		model = DLPTNet_PreLN_cls(open_yaml(args.DLPT_config)['layer_params'][args.model_config_type], c=40)
+		print("PreLN Mode")
 	else:
 		model = DLPTNet_cls(open_yaml(args.DLPT_config)['layer_params'][args.model_config_type], c=40)
+
 
 	optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
@@ -139,7 +190,10 @@ def main(args):
 					  epochs=args.epochs,
 					  args=args)
 
-	trainer.train()
+	if args.sanity_check:
+		trainer.train_single_batch()
+	else:
+		trainer.train()
 
 
 
