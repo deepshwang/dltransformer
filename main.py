@@ -16,13 +16,14 @@ import visdom
 
 
 class Trainer():
-	def __init__(self, model, train_dataloader, test_dataloader, criterion, optimizer, scheduler, epochs, args):
+	def __init__(self, model, train_dataloader, test_dataloader, criterion, optimizer, scheduler, start_epoch, epochs, args):
 		self.model = model
 		self.train_dataloader = train_dataloader
 		self.test_dataloader = test_dataloader
 		self.criterion = criterion
 		self.optimizer = optimizer
 		self.scheduler = scheduler
+		self.start_epoch = start_epoch
 		self.epochs = epochs
 		self.args = args
 
@@ -32,7 +33,7 @@ class Trainer():
 		best_train_acc = 0.0
 		self.model = self.model.to(self.args.device)
 
-		for e in range(self.epochs):
+		for e in range(self.start_epoch, self.epochs):
 			# Train
 			print("Resume Training: ", str(e + 1) , " / ", str(self.epochs))
 			self.model.train()
@@ -75,8 +76,8 @@ class Trainer():
 					labels = labels.to(self.args.device)
 					ds_idx = [d.to(self.args.device) for d in ds_idx] 
 
-					outputs = self.model(points)
-					loss = self.criterion(outputs, labels, cluster_idx, ds_idx)
+					outputs = self.model(points, cluster_idx, ds_idx)
+					loss = self.criterion(outputs, labels)
 					_, preds = torch.max(outputs, dim=1)
 					total += labels.size(0)
 					correct += (preds == labels).sum().item()
@@ -87,7 +88,11 @@ class Trainer():
 
 
 				if train_acc > best_train_acc:
-					torch.save(self.model.state_dict, self.args.model_save_name)
+					torch.save({'epoch': e,
+								'model_state_dict': self.model.state_dict(),
+								'optimizer_state_dict': self.optimizer.state_dict(),
+								'scheduler_state_dict': self.scheduler.state_dict()
+						})
 					best_train_acc = train_acc
 					print("MODEL UPGRADED!")
 
@@ -114,7 +119,6 @@ class Trainer():
 			outputs = self.model(points, cluster_idx, ds_idx)
 			
 			loss = self.criterion(outputs, labels)
-
 
 			self.optimizer.zero_grad()
 			loss.backward()
@@ -181,12 +185,23 @@ def main(args):
 
 	criterion = torch.nn.CrossEntropyLoss()
 
+	start_epoch = 0
+
+	if args.load_checkpoint is not None:
+		print("=== Resume training from loading: ", args.load_checkpoint, " ===")
+		checkpoint = torch.load(args.load_checkpoint)
+		start_epoch = checkpoint['epoch']
+		model.load_state_dict(checkpoint['model_state_dict'])
+		optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+		scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+
 	trainer = Trainer(model=model,
 					  train_dataloader=train_dataloader,
 					  test_dataloader=test_dataloader,
 					  criterion=criterion,
 					  optimizer=optimizer,
 					  scheduler=scheduler,
+					  start_epoch=start_epoch,
 					  epochs=args.epochs,
 					  args=args)
 

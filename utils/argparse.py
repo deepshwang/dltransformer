@@ -1,6 +1,6 @@
 import argparse
 import torch
-
+from datetime import datetime
 def argument_parser():
 	parser = argparse.ArgumentParser(description='')
 
@@ -51,22 +51,26 @@ def argument_parser():
 						type=str,
 						default='b')
 
-	parser.add_argument('--model_save_name',
-						type=str,
-						default='./state_dict/best_net.pth')
 
-	parser.add_argument('--plot_name',
+	parser.add_argument('--load_checkpoint',
 						type=str,
-						default='Loss Plot')
+						default=None)
+
+	# parser.add_argument('--plot_name',
+	# 					type=str,
+	# 					default='Loss Plot')
+
 
 	parser.add_argument('--pre_ln',
 						type=bool,
 						default=False)
 
+
 	parser.add_argument('--shuffle',
 						type=bool,
 						default=True,
 						help='Whether to shuffle training dataloader')
+
 
 	parser.add_argument('--sanity_check',
 						type=bool,
@@ -74,4 +78,25 @@ def argument_parser():
 						help='Whether to train a model to overfit a single batch to see if the model has the capability to learn')
 
 	args = parser.parse_args()
+
+
+	now = datetime.now()
+	dt_string = now.strftime("%d-%m-%Y_%H:%M")
+
+	
+	parser.add_argument('--plot_name',
+					  type=str,
+					  default=dt_string + "_gamma_" + str(args.gamma) + "_lr_" + str(args.lr)  + "_modelconfig_" + args.model_config_type)
+
+
+	parser.add_argument('--model_save_name',
+					type=str,
+					default=dt_string + "_gamma_" + str(args.gamma) + "_lr_" + str(args.lr) + "_modelconfig_" + args.model_config_type + ".pt")
+
+
+
+
+
+	args = parser.parse_args()
+
 	return args
