@@ -18,11 +18,12 @@ class DLPTNet_cls(nn.Module):
 		self.expansion_ratio = layer_configs['expansion_ratio']
 		self.d_config = layer_configs['d_config']
 		self.layer_norm = layer_configs['layer_norm']
+		self.droput_ratio = layer_configs['dropout_ratio']
 		self.ff = nn.Linear(3, self.d_config[0])
-		self.ds1 = DLPTLayer(self.d_config[1], self.ds_ratio, self.k, self.expansion_ratio, layer_norm=self.layer_norm)
-		self.ds2 = DLPTLayer(self.d_config[2], self.ds_ratio, self.k, self.expansion_ratio, layer_norm=self.layer_norm)
-		self.ds3 = DLPTLayer(self.d_config[3], self.ds_ratio, self.k, self.expansion_ratio, layer_norm=self.layer_norm)
-		self.ds4 = DLPTLayer(self.d_config[4], self.ds_ratio, self.k, self.expansion_ratio, layer_norm=self.layer_norm)
+		self.ds1 = DLPTLayer(self.d_config[1], self.ds_ratio, self.k, self.expansion_ratio, layer_norm=self.layer_norm, dropout_ratio=dropout_ratio)
+		self.ds2 = DLPTLayer(self.d_config[2], self.ds_ratio, self.k, self.expansion_ratio, layer_norm=self.layer_norm, dropout_ratio=dropout_ratio)
+		self.ds3 = DLPTLayer(self.d_config[3], self.ds_ratio, self.k, self.expansion_ratio, layer_norm=self.layer_norm, dropout_ratio=dropout_ratio)
+		self.ds4 = DLPTLayer(self.d_config[4], self.ds_ratio, self.k, self.expansion_ratio, layer_norm=self.layer_norm, dropout_ratio=dropout_ratio)
 		self.classifier = nn.Sequential(nn.Linear(self.d_config[-1][-1], 64),
 										nn.ReLU(),
 										nn.Linear(64, 40))

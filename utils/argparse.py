@@ -14,7 +14,7 @@ def argument_parser():
 						default='configs/semanticKitti_labelmapconfig.yaml')
 
 	parser.add_argument('--device', 
-						default='cuda:1' if torch.cuda.is_available() else 'cpu')
+						default='cuda' if torch.cuda.is_available() else 'cpu')
 
 	parser.add_argument('--train_batch_size', 
 						type=int,

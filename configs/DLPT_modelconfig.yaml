@@ -6,6 +6,7 @@ layer_params:
     k: 16
     expansion_ratio: 2
     layer_norm: True
+    dropout_ratio: 1
 
   b:
     d_config: [32, [32, 32, 64, 64], [64, 64, 128, 128], [128, 128, 256, 256], [256, 256, 512, 512]]
@@ -13,6 +14,7 @@ layer_params:
     k: 16
     expansion_ratio: 2
     layer_norm: True
+    dropout_ratio: 1
 
   c:
     d_config: [32, [32, 32, 64, 64], [64, 64, 128, 128], [128, 128, 256, 256], [256, 256, 512, 512]]
@@ -20,6 +22,7 @@ layer_params:
     k: 16
     expansion_ratio: 2
     layer_norm: True
+    dropout_ratio: 1
 
   d:
     d_config: [32, [32, 32, 64, 64], [64, 64, 128, 128], [128, 128, 256, 256], [256, 256, 512, 512]]
@@ -27,10 +30,12 @@ layer_params:
     k: 16
     expansion_ratio: 2
     layer_norm: False
+    dropout_ratio: 1
 
   e:
     d_config: [32, [32, 32, 64, 64], [64, 64, 128, 128], [128, 128, 256, 256], [256, 256, 512, 512]]
     ds_ratio: 4
-    k: 4
-    expansion_ratio: 4
+    k: 16
+    expansion_ratio: 2
     layer_norm: False
+    dropout_ratio: 0.5

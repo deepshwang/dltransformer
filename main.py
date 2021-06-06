@@ -34,7 +34,7 @@ class Trainer():
 		self.model = self.model.to(self.args.device)
 
 		for e in range(self.start_epoch, self.epochs):
-			# Train
+			# # Train
 			print("Resume Training: ", str(e + 1) , " / ", str(self.epochs))
 			self.model.train()
 			running_loss = 0.0
@@ -86,13 +86,12 @@ class Trainer():
 				train_acc = (100 * correct / total)
 				print("[", e + 1, "/ ", self.epochs, "]  Acc: ", train_acc, "%")
 
-
 				if train_acc > best_train_acc:
 					torch.save({'epoch': e,
 								'model_state_dict': self.model.state_dict(),
 								'optimizer_state_dict': self.optimizer.state_dict(),
 								'scheduler_state_dict': self.scheduler.state_dict()
-						})
+						}, self.args.model_save_name)
 					best_train_acc = train_acc
 					print("MODEL UPGRADED!")
 

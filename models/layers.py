@@ -36,14 +36,26 @@ class DLPTLayer(nn.Module):
 	'''
 	Decoupled Local Point Transformer Layer
 	'''
-	def __init__(self, d_config, downsample_ratio, kmeans_ratio, expansion_ratio, layer_norm):
+	def __init__(self, d_config, downsample_ratio, kmeans_ratio, expansion_ratio, layer_norm, dropout_ratio):
 		super(DLPTLayer, self).__init__()
 		d_feat_in = d_config[0]
 		d_pos_embed = d_config[1]
 		d_feat_hid = d_config[2]
 		d_feat_embed = d_config[3]
-		self.DLPTBlock1 = DLPTBlock(kmeans_ratio=kmeans_ratio, d_feat=d_feat_in, d_pos_embed=d_pos_embed, d_embed=d_feat_hid, layer_norm=layer_norm)
-		self.DLPTBlock2 = DLPTBlock(kmeans_ratio=expansion_ratio*kmeans_ratio, d_feat=d_feat_hid, d_pos_embed=d_pos_embed, d_embed=d_feat_embed, layer_norm=layer_norm)
+		self.DLPTBlock1 = DLPTBlock(kmeans_ratio=kmeans_ratio, 
+									d_feat=d_feat_in, 
+									d_pos_embed=d_pos_embed, 
+									d_embed=d_feat_hid, 
+									layer_norm=layer_norm,
+									dropout_ratio=dropout_ratio)
+		
+		self.DLPTBlock2 = DLPTBlock(kmeans_ratio=expansion_ratio*kmeans_ratio, 
+									d_feat=d_feat_hid, 
+									d_pos_embed=d_pos_embed, 
+									d_embed=d_feat_embed, 
+									layer_norm=layer_norm,
+									dropout_ratio=dropout_ratio)
+
 		self.FPSDownSample = FPS(downsample_ratio=downsample_ratio)
 
 
@@ -101,7 +113,7 @@ class DLPTBlock(nn.Module):
 	'''
 	Decoupled Local Point Transformer Block
 	'''
-	def __init__(self, kmeans_ratio, d_feat, d_pos_embed, d_embed, layer_norm):
+	def __init__(self, kmeans_ratio, d_feat, d_pos_embed, d_embed, layer_norm, dropout_ratio):
 		super(DLPTBlock, self).__init__()
 		self.kmeans_ratio = kmeans_ratio
 		self.d_pos = 3
@@ -116,7 +128,10 @@ class DLPTBlock(nn.Module):
 			self.ln2 = nn.LayerNorm(self.d_embed)
 		self.ff = nn.Sequential(nn.Linear(d_embed, d_embed*4),
 								nn.ReLU(),
+								nn.Dropout(dropout_ratio)
 								nn.Linear(d_embed*4, d_embed))
+		self.dropout1 = nn.Dropout(dropout_ratio)
+		self.dropout2 = nn.Dropout(dropout_ratio)
 
 
 	def forward(self, pos, feat, cluster_batchdict):
@@ -124,15 +139,15 @@ class DLPTBlock(nn.Module):
 		if cluster_batchdict is None:
 			cluster_batchdict = get_cluster_idxes(pos, kmeans_ratio=self.kmeans_ratio)
 		h_pos, h_geo = self.lpe(pos, feat, cluster_batchdict)
-		feat_out = self.dlsa(h_pos, h_geo, cluster_batchdict)
+		feat_out = self.dropout1(self.dlsa(h_pos, h_geo, cluster_batchdict))
 		
 		# [2] Skip connection + Layer Norm
 		feat_out = h_pos + feat_out
 		if self.layer_norm:
 			feat_out = self.ln1(feat_out) 
 		
-		# [3] Feed Forward & Skip connection + Layer Norm
-		final_out = self.ff(feat_out)
+		# [3] Feed Forward + dropout & Skip connection + Layer Norm
+		final_out = self.dropout2(self.ff(feat_out))
 		final_out = final_out + feat_out
 		if self.layer_norm is not None:
 			final_out = self.ln2(final_out)
