@@ -91,7 +91,7 @@ def argument_parser():
 
 	parser.add_argument('--model_save_name',
 					type=str,
-					default=dt_string + "_gamma_" + str(args.gamma) + "_lr_" + str(args.lr) + "_modelconfig_" + args.model_config_type + ".pt")
+					default= './state_dict/' + dt_string + "_gamma_" + str(args.gamma) + "_lr_" + str(args.lr) + "_modelconfig_" + args.model_config_type + ".pt")
 
 
 

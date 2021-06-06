@@ -128,7 +128,7 @@ class DLPTBlock(nn.Module):
 			self.ln2 = nn.LayerNorm(self.d_embed)
 		self.ff = nn.Sequential(nn.Linear(d_embed, d_embed*4),
 								nn.ReLU(),
-								nn.Dropout(dropout_ratio)
+								nn.Dropout(dropout_ratio),
 								nn.Linear(d_embed*4, d_embed))
 		self.dropout1 = nn.Dropout(dropout_ratio)
 		self.dropout2 = nn.Dropout(dropout_ratio)

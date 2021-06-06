@@ -37,5 +37,5 @@ layer_params:
     ds_ratio: 4
     k: 16
     expansion_ratio: 2
-    layer_norm: False
+    layer_norm: True
     dropout_ratio: 0.5

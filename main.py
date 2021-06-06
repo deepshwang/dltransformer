@@ -29,7 +29,9 @@ class Trainer():
 
 	def train(self):
 		self.vis = visdom.Visdom()
-		loss_plt = self.vis.line(Y=torch.Tensor(1).zero_(),opts=dict(title=self.args.plot_name, legend=['loss'], showlegend=True))
+		loss_plt = self.vis.line(Y=torch.Tensor(1).zero_(),opts=dict(title=self.args.plot_name, legend=['Training Loss'], showlegend=True))
+		val_loss_plt = self.vis.line(Y=torch.Tensor(1).zero_(),opts=dict(title="Val_loss_" + self.args.plot_name, legend=['Validation Loss'], showlegend=True))
+		val_acc_plt = self.vis.line(Y=torch.Tensor(1).zero_(),opts=dict(title="Val_acc_" + self.args.plot_name, legend=['Validation Accuracy'], showlegend=True))
 		best_train_acc = 0.0
 		self.model = self.model.to(self.args.device)
 
@@ -69,30 +71,41 @@ class Trainer():
 			# Test
 			total = 0.0
 			correct = 0.0
+			val_running_loss = 0.0
 			self.model.eval()
 			with torch.no_grad():
 				for i, (points, labels, cluster_idx, ds_idx) in enumerate(self.test_dataloader):
+					print(i, " / ", len(self.test_dataloader))
 					points = points.to(self.args.device)
 					labels = labels.to(self.args.device)
 					ds_idx = [d.to(self.args.device) for d in ds_idx] 
 
 					outputs = self.model(points, cluster_idx, ds_idx)
 					loss = self.criterion(outputs, labels)
+					val_running_loss += loss
 					_, preds = torch.max(outputs, dim=1)
 					total += labels.size(0)
 					correct += (preds == labels).sum().item()
 
 
-				train_acc = (100 * correct / total)
-				print("[", e + 1, "/ ", self.epochs, "]  Acc: ", train_acc, "%")
+				val_acc = (100 * correct / total)
+				print("[", e + 1, "/ ", self.epochs, "]  Acc: ", val_acc, "%")
+				
+				self.value_tracker(val_acc_plt,
+				  np.array([val_acc]),
+				  np.array([1 + e]))
 
-				if train_acc > best_train_acc:
+				self.value_tracker(val_loss_plt,
+								  np.array([val_running_loss.detach().cpu()]),
+								  np.array([1 + e]))
+
+				if val_acc > best_train_acc:
 					torch.save({'epoch': e,
 								'model_state_dict': self.model.state_dict(),
 								'optimizer_state_dict': self.optimizer.state_dict(),
 								'scheduler_state_dict': self.scheduler.state_dict()
 						}, self.args.model_save_name)
-					best_train_acc = train_acc
+					best_train_acc = val_acc
 					print("MODEL UPGRADED!")
 
 
@@ -191,7 +204,9 @@ def main(args):
 		checkpoint = torch.load(args.load_checkpoint)
 		start_epoch = checkpoint['epoch']
 		model.load_state_dict(checkpoint['model_state_dict'])
+		optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 		optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+		scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma, verbose=True)
 		scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
 
 	trainer = Trainer(model=model,
