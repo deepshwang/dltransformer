@@ -126,12 +126,21 @@ class DLPTBlock(nn.Module):
 			self.layer_norm = layer_norm
 			self.ln1 = nn.LayerNorm(self.d_embed)
 			self.ln2 = nn.LayerNorm(self.d_embed)
-		self.ff = nn.Sequential(nn.Linear(d_embed, d_embed*4),
-								nn.ReLU(),
-								nn.Dropout(dropout_ratio),
-								nn.Linear(d_embed*4, d_embed))
-		self.dropout1 = nn.Dropout(dropout_ratio)
-		self.dropout2 = nn.Dropout(dropout_ratio)
+		if dropout_ratio is not None:
+			self.ff = nn.Sequential(nn.Linear(d_embed, d_embed*4),
+									nn.ReLU(),
+									nn.Dropout(dropout_ratio),
+									nn.Linear(d_embed*4, d_embed))
+		else:
+			self.ff = nn.Sequential(nn.Linear(d_embed, d_embed*4),
+									nn.ReLU(),
+									nn.Linear(d_embed*4, d_embed))
+
+		if dropout_ratio is not None:
+			self.dropout1 = nn.Dropout(dropout_ratio)
+			self.dropout2 = nn.Dropout(dropout_ratio)
+		else:
+			self.dropout1 = self.dropout2 = None
 
 
 	def forward(self, pos, feat, cluster_batchdict):
@@ -139,15 +148,19 @@ class DLPTBlock(nn.Module):
 		if cluster_batchdict is None:
 			cluster_batchdict = get_cluster_idxes(pos, kmeans_ratio=self.kmeans_ratio)
 		h_pos, h_geo = self.lpe(pos, feat, cluster_batchdict)
-		feat_out = self.dropout1(self.dlsa(h_pos, h_geo, cluster_batchdict))
-		
+		feat_out = self.dlsa(h_pos, h_geo, cluster_batchdict)
+		if self.dropout1 is not None:
+			feat_out = self.dropout1(feat_out)
+
 		# [2] Skip connection + Layer Norm
 		feat_out = h_pos + feat_out
 		if self.layer_norm:
 			feat_out = self.ln1(feat_out) 
 		
 		# [3] Feed Forward + dropout & Skip connection + Layer Norm
-		final_out = self.dropout2(self.ff(feat_out))
+		final_out = self.ff(feat_out)
+		if self.dropout2 is not None:
+			final_out = self.dropout2(final_out)
 		final_out = final_out + feat_out
 		if self.layer_norm is not None:
 			final_out = self.ln2(final_out)
