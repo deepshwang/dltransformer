@@ -27,7 +27,6 @@ class DLPTLayer_PreLN(nn.Module):
 		feat = self.DLPTBlock1(pos, feat, cluster_batchdict_preprocess_1)
 		feat = self.DLPTBlock2(pos, feat, cluster_batchdict_preprocess_2)
 		pos, feat = self.FPSDownSample(pos, feat, fps_preprocess)
-		pdb.set_trace()
 		return pos, feat
 
 
