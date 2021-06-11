@@ -67,7 +67,8 @@ def s3dis_model_debug(args):
 
 
 def modelnet_debug(args):
-	configs = open_yaml('./configs/ModelNet40_labelmapconfig.yaml')
+	configs = open_yaml('./configs/DLPT_modelconfig.yaml')
+	configs = configs['layer_params']['g']
 
 	T = transforms.Compose(
 	[
@@ -82,13 +83,16 @@ def modelnet_debug(args):
 	# dataset = ModelNet40Dataset(num_points=1024, transforms=T)
 
 	# args, num_points, shuffle, train, transforms
-	dataloader = ModelNet40DataLoader(args, 1024, True, True, T)
+	k = configs['k']
+	d = configs['ds_ratio']
+	e = configs['expansion_ratio']
+	dataloader = ModelNet40DataLoader(args, 1024, True, True, T, k, d, e)
 	for i , data in enumerate(dataloader):
-		point, label, cluster_idx, downsample_idx = data
+		point, label, cluster_idx, downsample_idx, fpsknn_idx = data
 		pdb.set_trace()
 		point, label, cluster_idx, downsample_idx = point[0], label[0], cluster_idx[0], downsample_idx[0]
 		pdb.set_trace()
-		# draw_points_without_labels(point.numpy())
+		draw_points_without_labels(point.numpy())
 
 
 def cluster_visualize_debug(args):
@@ -153,5 +157,5 @@ def label_cluster_dict(cluster_dict, N):
 if __name__ == '__main__':
 	args = argument_parser()
 	# s3dis_model_debug(args)
-	cluster_visualize_debug(args)
+	modelnet_debug(args)
 	pdb.set_trace()

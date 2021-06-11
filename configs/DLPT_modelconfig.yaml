@@ -47,3 +47,11 @@ layer_params:
     expansion_ratio: 2
     layer_norm: False
     dropout_ratio: null
+
+  g:
+    d_config: [32, [32, 32, 64, 64], [64, 64, 128, 128], [128, 128, 256, 256], [256, 256, 512, 512]]
+    ds_ratio: 4
+    k: 16
+    expansion_ratio: 4
+    layer_norm: True
+    dropout_ratio: 0.5

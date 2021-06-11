@@ -26,7 +26,7 @@ class DLPTLayer_PreLN(nn.Module):
 	def forward(self, pos, feat, fps_preprocess=None, cluster_batchdict_preprocess_1=None, cluster_batchdict_preprocess_2=None):
 		feat = self.DLPTBlock1(pos, feat, cluster_batchdict_preprocess_1)
 		feat = self.DLPTBlock2(pos, feat, cluster_batchdict_preprocess_2)
-		pos, feat = self.FPSDownSample(pos, feat, fps_preprocess)
+		pos, feat = self.FPSDownSample(pos, feat, fps_preprocess) 
 		return pos, feat
 
 
@@ -55,13 +55,29 @@ class DLPTLayer(nn.Module):
 									layer_norm=layer_norm,
 									dropout_ratio=dropout_ratio)
 
+		# self.DLPTBlock3 = DLPTBlock(kmeans_ratio=kmeans_ratio, 
+		# 							d_feat=d_feat_embed, 
+		# 							d_pos_embed=d_pos_embed, 
+		# 							d_embed=d_feat_hid, 
+		# 							layer_norm=layer_norm,
+		# 							dropout_ratio=dropout_ratio)
+		
+		# self.DLPTBlock4 = DLPTBlock(kmeans_ratio=expansion_ratio*kmeans_ratio, 
+		# 							d_feat=d_feat_hid, 
+		# 							d_pos_embed=d_pos_embed, 
+		# 							d_embed=d_feat_embed, 
+		# 							layer_norm=layer_norm,
+		# 							dropout_ratio=dropout_ratio)
+
 		self.FPSDownSample = FPS(downsample_ratio=downsample_ratio)
 
 
-	def forward(self, pos, feat, fps_preprocess=None, cluster_batchdict_preprocess_1=None, cluster_batchdict_preprocess_2=None):
+	def forward(self, pos, feat, fps_preprocess=None, cluster_batchdict_preprocess_1=None, cluster_batchdict_preprocess_2=None, fpsknn_preprocess=None):
 		feat = self.DLPTBlock1(pos, feat, cluster_batchdict_preprocess_1)
 		feat = self.DLPTBlock2(pos, feat, cluster_batchdict_preprocess_2)
-		pos, feat = self.FPSDownSample(pos, feat, fps_preprocess)
+		# feat = self.DLPTBlock3(pos, feat, cluster_batchdict_preprocess_1)
+		# feat = self.DLPTBlock4(pos, feat, cluster_batchdict_preprocess_2)
+		pos, feat = self.FPSDownSample(pos, feat, fps_preprocess, fpsknn_preprocess)
 		return pos, feat
 
 
@@ -72,7 +88,7 @@ class FPS(nn.Module):
 		self.downsample_ratio = downsample_ratio
 
 
-	def forward(self, pos, feat, fps_preprocess):
+	def forward(self, pos, feat, fps_preprocess, k_idx):
 		B, N, _ = pos.shape
 		if fps_preprocess is not None:
 			fps_preprocess = fps_preprocess.view(B, -1)
@@ -84,14 +100,22 @@ class FPS(nn.Module):
 			feat_downsampled = self.gather_by_idx(feat, fp_idx)
 
 		# feat_downsampled = []
-		# for b in range(B):
-		# 	p = pos[b,:]
-		# 	f = feat[b,:]
-		# 	p_downsampled = pos_downsampled[b,:]
+		# if k_idx is not None:
+		# 	for b in range(B):
+		# 		f = feat[b,:]
+		# 		idx = k_idx[b]
+		# 		feat_maxed = torch.max(f[torch.from_numpy(idx)], dim=1).values
+		# 		feat_downsampled.append(feat_maxed)
 
-		# 	k_idx = faissKNN(index=p, query=p_downsampled, k=16)
-		# 	feat_downsampled.append(torch.mean(f[torch.from_numpy(k_idx)], dim=1))
-		# 	# feat_downsampled.append(torch.max(f[torch.from_numpy(k_idx)], dim=1).values)
+		# else:
+		# 	for b in range(B):
+		# 		p = pos[b,:]
+		# 		f = feat[b,:]
+		# 		p_downsampled = pos_downsampled[b,:]
+
+		# 		k_idx = faissKNN(index=p, query=p_downsampled, k=16)
+		# 		# feat_downsampled.append(torch.mean(f[torch.from_numpy(k_idx)], dim=1))
+		# 		feat_downsampled.append(torch.max(f[torch.from_numpy(k_idx)], dim=1).values)
 
 
 		# feat_downsampled = torch.stack(feat_downsampled)
@@ -299,13 +323,14 @@ class LPEBlock(nn.Module):
 		return h_pos, h_geo
 
 
-	def _make_embedding_layers(self, d_in, d_out, layer_norm=True, relu=True):
+	def _make_embedding_layers(self, d_in, d_out, layer_norm=False, relu=True):
 		modules=[]
 		modules.append(nn.Linear(d_in, d_out))
 		if layer_norm:
 			modules.append(nn.LayerNorm(d_out))
 		if relu:
 			modules.append(nn.ReLU())
+			modules.append(nn.Linear(d_out, d_out))
 
 		sequential = nn.Sequential(*modules)
 		return sequential

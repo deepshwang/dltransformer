@@ -28,11 +28,15 @@ def pc_normalize(pc):
 
 
 class ModelNet40Dataset(data.Dataset):
-    def __init__(self, num_points=1024, transforms=None, train=True, download=True):
+    def __init__(self, num_points=1024, transforms=None, train=True, download=True, preprocess=True, k=16, d=4, e=2):
         super().__init__()
-        self.ds_ratio=4
-        self.cluster_filelist, self.downsample_filelist = self._get_index_file_list(train)
-
+        self.d=d
+        self.k=k
+        self.e=e
+        self.index_root = '/media/TrainDataset/modelnet40_normal_resampled_cache/index_files/k_' + str(k) + "_d_" + str(d) + "_e_" + str(e)
+        if preprocess:
+            self.cluster_filelist, self.downsample_filelist, self.fpsknn_filelist= self._get_index_file_list(train)
+        self.preprocess = preprocess
         self.transforms = transforms
 
         self.set_num_points(num_points)
@@ -147,17 +151,25 @@ class ModelNet40Dataset(data.Dataset):
         if self.transforms is not None:
             point_set = self.transforms(point_set)
 
-        with open(self.cluster_filelist[idx], "rb") as c_file:
-            c_data = c_file.read()
-        cluster_idx = msgpack.unpackb(c_data, strict_map_key=False)
+        if self.preprocess:
+            with open(self.cluster_filelist[idx], "rb") as c_file:
+                c_data = c_file.read()
+            cluster_idx = msgpack.unpackb(c_data, strict_map_key=False)
 
-        with open(self.downsample_filelist[idx], "rb") as d_file:
-            d_data = d_file.read()
-        downsample_idx = msgpack.unpackb(d_data, strict_map_key=False, object_hook=msgpack_numpy.decode)
-        ds_pre = torch.from_numpy(downsample_idx.copy())
+            with open(self.downsample_filelist[idx], "rb") as d_file:
+                d_data = d_file.read()
+            downsample_idx = msgpack.unpackb(d_data, strict_map_key=False, object_hook=msgpack_numpy.decode)
+            ds_pre = torch.from_numpy(downsample_idx.copy())
 
+            with open(self.fpsknn_filelist[idx], "rb") as d_file:
+                d_data = d_file.read()
+            fpsknn_idx = msgpack.unpackb(d_data, strict_map_key=False, object_hook=msgpack_numpy.decode)
+            # fpsknn_idx = [torch.from_numpy(f.copy()) for f in fpsknn_idx]
+            
+            return point_set, ele["lbl"], cluster_idx, ds_pre, fpsknn_idx
 
-        return point_set, ele["lbl"], cluster_idx, ds_pre
+        else:
+            return point_set, ele["lbl"]
 
     def __len__(self):
         return self._len
@@ -168,13 +180,13 @@ class ModelNet40Dataset(data.Dataset):
 
 
     def _get_index_file_list(self, train=True):
-        index_root = '/media/TrainDataset/modelnet40_normal_resampled_cache/index_files'
         if train:
-            index_root = index_root + "/train"
+            index_root = self.index_root + "/train"
         else:
-            index_root = index_root + '/test'
+            index_root = self.index_root + '/test'
         cluster_filelist = []
         downsample_filelist =[]
+        fpsknn_filelist = []
         for f in os.listdir(index_root):
             # num = f.split(".")[0].split("_")[-1]
             # if len(num) < 4:
@@ -188,12 +200,17 @@ class ModelNet40Dataset(data.Dataset):
                     cluster_filelist.append(os.path.join(index_root, f))
                 elif f[:4] == 'down':
                     downsample_filelist.append(os.path.join(index_root, f))
+                elif f[:3] == 'fps':
+                    fpsknn_filelist.append(os.path.join(index_root, f))
+
         cluster_filelist.sort()
         downsample_filelist.sort()
-        return cluster_filelist, downsample_filelist
+        fpsknn_filelist.sort()
+        return cluster_filelist, downsample_filelist, fpsknn_filelist
+
 
     def collate_fn(self, samples):
-        point_set, labels, cluster_idxs, downsample_idxs = map(list, zip(*samples))
+        point_set, labels, cluster_idxs, downsample_idxs, fpsknn_idxs = map(list, zip(*samples))
         # print("point_set: ")
         # print(point_set)
         # print("point_set type: ")
@@ -210,18 +227,23 @@ class ModelNet40Dataset(data.Dataset):
             cluster_idx_list.append([batch[i] for batch in cluster_idxs])
 
         ds_pre_1 = torch.stack(downsample_idxs)
-        ds_pre_2 = torch.arange(ds_pre_1.shape[2]/self.ds_ratio).expand(ds_pre_1.shape[0], 1, -1).type(torch.IntTensor)
-        ds_pre_3 = torch.arange(ds_pre_2.shape[2]/self.ds_ratio).expand(ds_pre_2.shape[0], 1, -1).type(torch.IntTensor)
-        ds_pre_4 = torch.arange(ds_pre_3.shape[2]/self.ds_ratio).expand(ds_pre_3.shape[0], 1, -1).type(torch.IntTensor)
+        ds_pre_2 = torch.arange(ds_pre_1.shape[2]/self.d).expand(ds_pre_1.shape[0], 1, -1).type(torch.IntTensor)
+        ds_pre_3 = torch.arange(ds_pre_2.shape[2]/self.d).expand(ds_pre_2.shape[0], 1, -1).type(torch.IntTensor)
+        ds_pre_4 = torch.arange(ds_pre_3.shape[2]/self.d).expand(ds_pre_3.shape[0], 1, -1).type(torch.IntTensor)
+
+        fpsknn_idx_list = []
+        for i in range(len(fpsknn_idxs[0])):
+            batchlist = [f[i] for f in fpsknn_idxs]
+            fpsknn_idx_list.append(np.stack(batchlist))
 
 
-        return point_set, labels, cluster_idx_list, [ds_pre_1, ds_pre_2, ds_pre_3, ds_pre_4]
+        return point_set, labels, cluster_idx_list, [ds_pre_1, ds_pre_2, ds_pre_3, ds_pre_4], fpsknn_idx_list
 
 
 
 
-def ModelNet40DataLoader(args, num_points, shuffle, train, transforms):
-    dataset = ModelNet40Dataset(num_points, train=train, transforms=transforms)
+def ModelNet40DataLoader(args, num_points, shuffle, train, transforms, k, d, e):
+    dataset = ModelNet40Dataset(num_points, train=train, transforms=transforms, k=k, d=d, e=e)
     if train:
         batch_size = args.train_batch_size
     else:

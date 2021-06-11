@@ -40,12 +40,12 @@ class Trainer():
 			print("Resume Training: ", str(e + 1) , " / ", str(self.epochs))
 			self.model.train()
 			running_loss = 0.0
-			for i, (points, labels, cluster_idx, ds_idx) in enumerate(self.train_dataloader):
+			for i, (points, labels, cluster_idx, ds_idx, fpsknn_idx) in enumerate(self.train_dataloader):
 				points = points.to(self.args.device)
 				labels = labels.to(self.args.device)
 				ds_idx = [d.to(self.args.device) for d in ds_idx] 
 
-				outputs = self.model(points, cluster_idx, ds_idx)
+				outputs = self.model(points, cluster_idx, ds_idx, fpsknn_idx)
 				
 				loss = self.criterion(outputs, labels)
 
@@ -74,13 +74,13 @@ class Trainer():
 			val_running_loss = 0.0
 			self.model.eval()
 			with torch.no_grad():
-				for i, (points, labels, cluster_idx, ds_idx) in enumerate(self.test_dataloader):
+				for i, (points, labels, cluster_idx, ds_idx, fpsknn_idx) in enumerate(self.test_dataloader):
 					print(i, " / ", len(self.test_dataloader))
 					points = points.to(self.args.device)
 					labels = labels.to(self.args.device)
 					ds_idx = [d.to(self.args.device) for d in ds_idx] 
 
-					outputs = self.model(points, cluster_idx, ds_idx)
+					outputs = self.model(points, cluster_idx, ds_idx, fpsknn_idx)
 					loss = self.criterion(outputs, labels)
 					val_running_loss += loss
 					_, preds = torch.max(outputs, dim=1)
@@ -118,7 +118,7 @@ class Trainer():
 		same_block_name = []
 		different_block_name = []
 
-		points, labels, cluster_idx, ds_idx = next(iter(self.train_dataloader))
+		points, labels, cluster_idx, ds_idx, fpsknn_idx = next(iter(self.train_dataloader))
 
 		for e in range(self.epochs):
 			# Train
@@ -128,7 +128,7 @@ class Trainer():
 			labels = labels.to(self.args.device)
 			ds_idx = [d.to(self.args.device) for d in ds_idx] 
 
-			outputs = self.model(points, cluster_idx, ds_idx)
+			outputs = self.model(points, cluster_idx, ds_idx, fpsknn_idx)
 			
 			loss = self.criterion(outputs, labels)
 
@@ -172,18 +172,21 @@ class Trainer():
 
 
 def main(args):
-
+	kde_config = open_yaml(args.DLPT_config)['layer_params'][args.model_config_type]
+	k = kde_config['k']
+	d = kde_config['ds_ratio']
+	e = kde_config['expansion_ratio']
 
 	train_dataloader = ModelNet40DataLoader(args, 
 											num_points=1024,
 											shuffle=args.shuffle,
 											train=True,
-											transforms=T_train)
+											transforms=T_train, k=k, d=d, e=e)
 	test_dataloader = ModelNet40DataLoader(args,
 										   num_points=1024,
 										   shuffle=False,
 										   train=False,
-										   transforms=T_test)
+										   transforms=T_test, k=k, d=d, e=e)
 	if args.pre_ln:
 		model = DLPTNet_PreLN_cls(open_yaml(args.DLPT_config)['layer_params'][args.model_config_type], c=40)
 		print("PreLN Mode")

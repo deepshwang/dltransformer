@@ -19,7 +19,7 @@ class DLPTNet_cls(nn.Module):
 		self.d_config = layer_configs['d_config']
 		self.layer_norm = layer_configs['layer_norm']
 		self.dropout_ratio = layer_configs['dropout_ratio']
-		self.ff = nn.Linear(3, self.d_config[0])
+		self.ff = nn.Linear(6, self.d_config[0])
 		self.ds1 = DLPTLayer(self.d_config[1], self.ds_ratio, self.k, self.expansion_ratio, layer_norm=self.layer_norm, dropout_ratio=self.dropout_ratio)
 		self.ds2 = DLPTLayer(self.d_config[2], self.ds_ratio, self.k, self.expansion_ratio, layer_norm=self.layer_norm, dropout_ratio=self.dropout_ratio)
 		self.ds3 = DLPTLayer(self.d_config[3], self.ds_ratio, self.k, self.expansion_ratio, layer_norm=self.layer_norm, dropout_ratio=self.dropout_ratio)
@@ -31,7 +31,7 @@ class DLPTNet_cls(nn.Module):
 
 
 
-	def forward(self, x, c_pre=None, ds_pre=None):
+	def forward(self, x, c_pre=None, ds_pre=None, fpsknn_pre=None):
 		if c_pre is None:
 			c_pre_11 = c_pre_12 = c_pre_21 = c_pre_22 = c_pre_31 = c_pre_32 = c_pre_41 = c_pre_42 = None
 		else:
@@ -50,7 +50,6 @@ class DLPTNet_cls(nn.Module):
 			ds_pre_2 = None
 			ds_pre_3 = None
 			ds_pre_4 = None
-
 		else:
 			ds_pre_1 = ds_pre[0]
 			ds_pre_2 = ds_pre[1]
@@ -58,13 +57,22 @@ class DLPTNet_cls(nn.Module):
 			ds_pre_4 = ds_pre[3]
 
 
+		if fpsknn_pre is None:
+			fpsknn_pre_1 = fpsknn_pre_2 = fpsknn_pre_3 = fpsknn_pre_4 = None
+		else:
+			fpsknn_pre_1 = fpsknn_pre[0]
+			fpsknn_pre_2 = fpsknn_pre[1]
+			fpsknn_pre_3 = fpsknn_pre[2]
+			fpsknn_pre_4 = fpsknn_pre[3]
+
+
 		pos = x[:, :, :3]
-		feat = x[:, :, 3:6]
+		feat = x[:, :, :6]
 		feat = self.ff(feat)
-		pos_ds, feat_ds = self.ds1(pos, feat, ds_pre_1, c_pre_11, c_pre_12)
-		pos_ds, feat_ds = self.ds2(pos_ds, feat_ds, ds_pre_2, c_pre_21, c_pre_22)
-		pos_ds, feat_ds = self.ds3(pos_ds, feat_ds, ds_pre_3, c_pre_31, c_pre_32)
-		pos_ds, feat_ds = self.ds4(pos_ds, feat_ds, ds_pre_4, c_pre_41, c_pre_42)
+		pos_ds, feat_ds = self.ds1(pos, feat, ds_pre_1, c_pre_11, c_pre_12, fpsknn_pre_1)
+		pos_ds, feat_ds = self.ds2(pos_ds, feat_ds, ds_pre_2, c_pre_21, c_pre_22, fpsknn_pre_2)
+		pos_ds, feat_ds = self.ds3(pos_ds, feat_ds, ds_pre_3, c_pre_31, c_pre_32, fpsknn_pre_3)
+		pos_ds, feat_ds = self.ds4(pos_ds, feat_ds, ds_pre_4, c_pre_41, c_pre_42, fpsknn_pre_4)
 		out = torch.mean(feat_ds, dim=1)
 		out = self.classifier(out)
 		return out
@@ -103,7 +111,7 @@ class DLPTNet_PreLN_cls(nn.Module):
 
 
 
-	def forward(self, x, c_pre=None, ds_pre=None):
+	def forward(self, x, c_pre=None, ds_pre=None, fpsknn_pre=None):
 		if c_pre is None:
 			c_pre_11 = c_pre_12 = c_pre_21 = c_pre_22 = c_pre_31 = c_pre_32 = c_pre_41 = c_pre_42 = None
 		else:
@@ -122,12 +130,20 @@ class DLPTNet_PreLN_cls(nn.Module):
 			ds_pre_2 = None
 			ds_pre_3 = None
 			ds_pre_4 = None
-
 		else:
 			ds_pre_1 = ds_pre[0]
 			ds_pre_2 = ds_pre[1]
 			ds_pre_3 = ds_pre[2]
 			ds_pre_4 = ds_pre[3]
+
+
+		if fpsknn_pre is None:
+			fpsknn_pre_1 = fpsknn_pre_2 = fpsknn_pre_3 = fpsknn_pre_4 = None
+		else:
+			fpsknn_pre_1 = fpsknn_pre[0]
+			fpsknn_pre_2 = fpsknn_pre[1]
+			fpsknn_pre_3 = fpsknn_pre[2]
+			fpsknn_pre_4 = fpsknn_pre[3]
 
 
 		pos = x[:, :, :3]

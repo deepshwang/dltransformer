@@ -7,6 +7,7 @@ import time
 import pgt_ops.pgt_utils as pt_utils
 import msgpack
 import msgpack_numpy
+from utils.tuil import open_yaml
 
 
 def main(mode):
@@ -21,7 +22,7 @@ def main(mode):
 	# expansion ratio
 	e = 2
 
-	root_dir = '/media/TrainDataset/modelnet40_normal_resampled_cache/index_files'
+	root_dir = '/media/TrainDataset/modelnet40_normal_resampled_cache/index_files/k_' + str(k) + "_d_" + str(d) + "_e_" + str(e) 
 	
 	for i in range(len(train_dataset)):
 		point, _, cluster_idx, ds_idx = train_dataset[i]
