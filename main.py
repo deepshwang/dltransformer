@@ -75,7 +75,6 @@ class Trainer():
 			self.model.eval()
 			with torch.no_grad():
 				for i, (points, labels, cluster_idx, ds_idx, fpsknn_idx) in enumerate(self.test_dataloader):
-					print(i, " / ", len(self.test_dataloader))
 					points = points.to(self.args.device)
 					labels = labels.to(self.args.device)
 					ds_idx = [d.to(self.args.device) for d in ds_idx] 

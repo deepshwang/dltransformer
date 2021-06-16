@@ -1,5 +1,6 @@
 import mayavi.mlab as mlab
 import numpy as np
+import pdb
 
 
 def draw_grid(x1, y1, x2, y2, fig, tube_radius=None, color=(0.5, 0.5, 0.5)):
@@ -30,11 +31,32 @@ def draw_points_with_labels(pts, labels):
 	mlab.show(stop=False)
 
 
+
 def draw_points_without_labels(pts):
 
     fig = mlab.figure(figure=None, bgcolor=(0, 0, 0), fgcolor=(1.0, 1.0, 1.0), engine=None, size=(600, 600))
     mlab.points3d(pts[:, 0], pts[:, 1], pts[:, 2], mode='point',
                                                                       scale_factor=1, 
+                                                                      figure=fig)
+    
+    fig = draw_multi_grid_range(fig, bv_range=(-40, -40, 80, 40))
+    mlab.view(azimuth=-179, elevation=54.0, distance=104.0, roll=90.0)
+    mlab.show(stop=False)
+
+def draw_multiple_points_without_labels(pts_list):
+
+    fig = mlab.figure(figure=None, bgcolor=(0, 0, 0), fgcolor=(1.0, 1.0, 1.0), engine=None, size=(600, 600))
+    n = len(pts_list)
+    label_list = []
+    for i, pts in enumerate(pts_list):
+        N = pts.shape[0]
+        label_list.append((i+1)/n * np.ones(N))
+    
+    pts = np.concatenate(pts_list)
+    labels = np.concatenate(label_list)
+
+    mlab.points3d(pts[:, 0], pts[:, 1], pts[:, 2], labels,  mode='sphere',
+                                                                      scale_factor=0.03, scale_mode='none', 
                                                                       figure=fig)
     
     fig = draw_multi_grid_range(fig, bv_range=(-40, -40, 80, 40))

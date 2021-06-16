@@ -19,7 +19,7 @@ class DLPTNet_cls(nn.Module):
 		self.d_config = layer_configs['d_config']
 		self.layer_norm = layer_configs['layer_norm']
 		self.dropout_ratio = layer_configs['dropout_ratio']
-		self.ff = nn.Linear(6, self.d_config[0])
+		self.ff = nn.Linear(3, self.d_config[0])
 		self.ds1 = DLPTLayer(self.d_config[1], self.ds_ratio, self.k, self.expansion_ratio, layer_norm=self.layer_norm, dropout_ratio=self.dropout_ratio)
 		self.ds2 = DLPTLayer(self.d_config[2], self.ds_ratio, self.k, self.expansion_ratio, layer_norm=self.layer_norm, dropout_ratio=self.dropout_ratio)
 		self.ds3 = DLPTLayer(self.d_config[3], self.ds_ratio, self.k, self.expansion_ratio, layer_norm=self.layer_norm, dropout_ratio=self.dropout_ratio)
@@ -67,7 +67,7 @@ class DLPTNet_cls(nn.Module):
 
 
 		pos = x[:, :, :3]
-		feat = x[:, :, :6]
+		feat = x[:, :, 3:6]
 		feat = self.ff(feat)
 		pos_ds, feat_ds = self.ds1(pos, feat, ds_pre_1, c_pre_11, c_pre_12, fpsknn_pre_1)
 		pos_ds, feat_ds = self.ds2(pos_ds, feat_ds, ds_pre_2, c_pre_21, c_pre_22, fpsknn_pre_2)
