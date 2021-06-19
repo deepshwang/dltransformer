@@ -10,86 +10,98 @@ import sys, os
 from utils.visualize import draw_points_without_labels, draw_multiple_points_without_labels
 
 
-class DLPTLayer_PreLN(nn.Module):
+# class DLPTLayer_PreLN(nn.Module):
+# 	'''
+# 	Decoupled Local Point Transformer Layer
+# 	'''
+# 	def __init__(self, d_config, downsample_ratio=4, kmeans_ratio=16, expansion_ratio=2, layer_norm=True):
+# 		super(DLPTLayer_PreLN, self).__init__()
+# 		d_feat_in = d_config[0]
+# 		d_pos_embed = d_config[1]
+# 		d_feat_hid = d_config[2]
+# 		d_feat_embed = d_config[3]
+# 		self.DLPTBlock1 = DLPTBlock_PreLN(kmeans_ratio=kmeans_ratio, d_feat=d_feat_in, d_pos_embed=d_pos_embed, d_embed=d_feat_hid, layer_norm=layer_norm)
+# 		self.DLPTBlock2 = DLPTBlock_PreLN(kmeans_ratio=expansion_ratio*kmeans_ratio, d_feat=d_feat_hid, d_pos_embed=d_pos_embed, d_embed=d_feat_embed, layer_norm=layer_norm)
+# 		self.FPSDownSample = FPS(downsample_ratio=downsample_ratio)
+
+
+# 	def forward(self, pos, feat, fps_preprocess=None, cluster_batchdict_preprocess_1=None, cluster_batchdict_preprocess_2=None):
+# 		feat = self.DLPTBlock1(pos, feat, cluster_batchdict_preprocess_1)
+# 		feat = self.DLPTBlock2(pos, feat, cluster_batchdict_preprocess_2)
+# 		pos, feat = self.FPSDownSample(pos, feat, fps_preprocess) 
+# 		return pos, feat
+
+
+
+class DLPTDownLayer(nn.Module):
 	'''
 	Decoupled Local Point Transformer Layer
 	'''
-	def __init__(self, d_config, downsample_ratio=4, kmeans_ratio=16, expansion_ratio=2, layer_norm=True):
-		super(DLPTLayer_PreLN, self).__init__()
-		d_feat_in = d_config[0]
-		d_pos_embed = d_config[1]
-		d_feat_hid = d_config[2]
-		d_feat_embed = d_config[3]
-		self.DLPTBlock1 = DLPTBlock_PreLN(kmeans_ratio=kmeans_ratio, d_feat=d_feat_in, d_pos_embed=d_pos_embed, d_embed=d_feat_hid, layer_norm=layer_norm)
-		self.DLPTBlock2 = DLPTBlock_PreLN(kmeans_ratio=expansion_ratio*kmeans_ratio, d_feat=d_feat_hid, d_pos_embed=d_pos_embed, d_embed=d_feat_embed, layer_norm=layer_norm)
-		self.FPSDownSample = FPS(downsample_ratio=downsample_ratio)
-
-
-	def forward(self, pos, feat, fps_preprocess=None, cluster_batchdict_preprocess_1=None, cluster_batchdict_preprocess_2=None):
-		feat = self.DLPTBlock1(pos, feat, cluster_batchdict_preprocess_1)
-		feat = self.DLPTBlock2(pos, feat, cluster_batchdict_preprocess_2)
-		pos, feat = self.FPSDownSample(pos, feat, fps_preprocess) 
-		return pos, feat
-
-
-
-class DLPTLayer(nn.Module):
-	'''
-	Decoupled Local Point Transformer Layer
-	'''
-	def __init__(self, d_config, downsample_ratio, kmeans_ratio, expansion_ratio, layer_norm, dropout_ratio):
-		super(DLPTLayer, self).__init__()
-		d_feat_in = d_config[0]
-		d_pos_embed = d_config[1]
-		d_feat_hid = d_config[2]
-		d_feat_embed = d_config[3]
+	def __init__(self, d_in, d_out, downsample_ratio, kmeans_ratio, expansion_ratio, layer_norm, dropout_ratio):
+		super(DLPTDownLayer, self).__init__()
+		self.d_in = d_in
+		self.d_out = d_out
 		self.DLPTBlock1 = DLPTBlock(kmeans_ratio=kmeans_ratio, 
-									d_feat=d_feat_in, 
-									d_pos_embed=d_pos_embed, 
-									d_embed=d_feat_hid, 
+									d_embed=d_in, 
 									layer_norm=layer_norm,
 									dropout_ratio=dropout_ratio)
 		
 		self.DLPTBlock2 = DLPTBlock(kmeans_ratio=expansion_ratio*kmeans_ratio, 
-									d_feat=d_feat_hid, 
-									d_pos_embed=d_pos_embed, 
-									d_embed=d_feat_embed, 
+									d_embed=d_in, 
 									layer_norm=layer_norm,
 									dropout_ratio=dropout_ratio)
 
-		# self.DLPTBlock3 = DLPTBlock(kmeans_ratio=kmeans_ratio, 
-		# 							d_feat=d_feat_embed, 
-		# 							d_pos_embed=d_pos_embed, 
-		# 							d_embed=d_feat_hid, 
-		# 							layer_norm=layer_norm,
-		# 							dropout_ratio=dropout_ratio)
-		
-		# self.DLPTBlock4 = DLPTBlock(kmeans_ratio=expansion_ratio*kmeans_ratio, 
-		# 							d_feat=d_feat_hid, 
-		# 							d_pos_embed=d_pos_embed, 
-		# 							d_embed=d_feat_embed, 
-		# 							layer_norm=layer_norm,
-		# 							dropout_ratio=dropout_ratio)
 
-		self.FPSDownSample = FPS(downsample_ratio=downsample_ratio, d_feat=d_feat_embed)
+		self.trans_down = TransitionDown(downsample_ratio=downsample_ratio, d_in=d_in, d_out=d_out)
 
 
 	def forward(self, pos, feat, fps_preprocess=None, cluster_batchdict_preprocess_1=None, cluster_batchdict_preprocess_2=None, fpsknn_preprocess=None):
 		feat = self.DLPTBlock1(pos, feat, cluster_batchdict_preprocess_1)
 		feat = self.DLPTBlock2(pos, feat, cluster_batchdict_preprocess_2)
-		# feat = self.DLPTBlock3(pos, feat, cluster_batchdict_preprocess_1)
-		# feat = self.DLPTBlock4(pos, feat, cluster_batchdict_preprocess_2)
-		pos, feat = self.FPSDownSample(pos, feat, fps_preprocess, fpsknn_preprocess)
+		pos, feat = self.trans_down(pos, feat, fps_preprocess, fpsknn_preprocess)
 		return pos, feat
 
 
 
-class FPS(nn.Module):
-	def __init__(self, downsample_ratio, d_feat):
-		super(FPS, self).__init__()
+
+class DLPTUpLayer(nn.Module):
+	'''
+	Decoupled Local Point Transformer Layer
+	'''
+	def __init__(self, d_in, d_out, downsample_ratio, kmeans_ratio, expansion_ratio, layer_norm, dropout_ratio):
+		super(DLPTUpLayer, self).__init__()
+		self.d_in = d_in
+		self.d_out = d_out
+
+		self.trans_up = TransitionUp(d_in=d_in, d_out=d_out)
+
+		self.DLPTBlock1 = DLPTBlock(kmeans_ratio=kmeans_ratio, 
+									d_embed=d_out, 
+									layer_norm=layer_norm,
+									dropout_ratio=dropout_ratio)
+		
+		self.DLPTBlock2 = DLPTBlock(kmeans_ratio=expansion_ratio*kmeans_ratio, 
+									d_embed=d_out, 
+									layer_norm=layer_norm,
+									dropout_ratio=dropout_ratio)
+
+
+
+
+	def forward(self, pos, feat, pos2, feat2, cluster_batchdict_preprocess_1=None, cluster_batchdict_preprocess_2=None):
+		feat = self.trans_up(pos, feat, pos2, feat2)
+		feat = self.DLPTBlock1(pos2, feat, cluster_batchdict_preprocess_1)
+		feat = self.DLPTBlock2(pos2, feat, cluster_batchdict_preprocess_2)
+		return feat
+
+
+
+class TransitionDown(nn.Module):
+	def __init__(self, downsample_ratio, d_in, d_out):
+		super(TransitionDown, self).__init__()
 		self.downsample_ratio = downsample_ratio
-		self.linear = nn.Linear(d_feat, d_feat)
-		self.bn = nn.BatchNorm1d(d_feat)
+		self.linear = nn.Linear(d_in, d_out)
+		self.bn = nn.BatchNorm1d(d_out)
 		self.relu = nn.ReLU()
 
 	def forward(self, pos, feat, fps_preprocess, k_idx):
@@ -101,12 +113,12 @@ class FPS(nn.Module):
 		
 		if fps_preprocess is not None:
 			fps_preprocess = fps_preprocess.view(B, -1)
-			pos_downsampled = self.gather_by_idx(pos, fps_preprocess)
-			# feat_downsampled = self.gather_by_idx(feat, fps_preprocess)
+			pos_downsampled = gather_by_idx(pos, fps_preprocess)
+			# feat_downsampled = gather_by_idx(feat, fps_preprocess)
 		else:
 			fp_idx = pt_utils.farthest_point_sample(pos.contiguous(), int(N/self.downsample_ratio))
-			pos_downsampled = self.gather_by_idx(pos, fp_idx)
-			# feat_downsampled = self.gather_by_idx(feat, fp_idx)
+			pos_downsampled = gather_by_idx(pos, fp_idx)
+			# feat_downsampled = gather_by_idx(feat, fp_idx)
 
 		feat_downsampled = []
 		if k_idx is not None:
@@ -142,12 +154,44 @@ class FPS(nn.Module):
 		return pos_downsampled, feat_downsampled
 
 
-	def gather_by_idx(self, db, q_idx):
-		db_flipped = torch.einsum("ijk->ikj", db).contiguous()
-		db = pt_utils.gather_operation(db_flipped, q_idx)
-		db = torch.einsum("ijk->ikj", db).contiguous()
+class TransitionUp(nn.Module):
 
-		return db
+	def __init__(self, d_in, d_out):
+		super().__init__()
+
+		self.up_mlp = nn.Sequential(
+			nn.Conv1d(d_in, d_out, kernel_size=1, bias=False),
+			nn.BatchNorm1d(d_out),
+			nn.ReLU(True)
+		)
+		self.lateral_mlp = nn.Sequential(
+			nn.Conv1d(d_out, d_out, kernel_size=1, bias=False),
+			nn.BatchNorm1d(d_out),
+			nn.ReLU(True)
+		)
+
+
+	def forward(self, x1, p1, x2, p2):
+		"""
+			x1: (B, N, d_in) torch.Tensor
+			p1: (B, N, 3) torch.Tensor
+			x2: (B, M, d_out) torch.Tensor
+			p2: (B, M, 3) torch.Tensor
+			Note that N is smaller than M because this module upsamples features.
+		"""
+		x1 = self.up_mlp(x1.transpose(1, 2).contiguous())
+		dist, idx= pt_utils.three_nn(p2, p1)
+		dist_recip = 1.0 / (dist + 1e-8)
+		norm = torch.sum(dist_recip, dim=2, keepdim=True)
+		weight = dist_recip / norm
+		interpolated_feats = pt_utils.three_interpolate(
+			x1, idx, weight
+		)
+		x2 = self.lateral_mlp(x2.transpose(1, 2).contiguous())
+		y = interpolated_feats + x2
+		return y.transpose(1, 2).contiguous(), p2
+
+
 
 
 
@@ -155,13 +199,11 @@ class DLPTBlock(nn.Module):
 	'''
 	Decoupled Local Point Transformer Block
 	'''
-	def __init__(self, kmeans_ratio, d_feat, d_pos_embed, d_embed, layer_norm, dropout_ratio):
+	def __init__(self, kmeans_ratio, d_embed, layer_norm, dropout_ratio):
 		super(DLPTBlock, self).__init__()
 		self.kmeans_ratio = kmeans_ratio
-		self.d_pos = 3
-		self.d_pos_embed = d_pos_embed
 		self.d_embed = d_embed
-		self.lpe = LPEBlock(d_feat=d_feat, d_pos_embed=d_pos_embed, d_embed=d_embed)
+		self.lpe = LPEBlock(d_embed=d_embed)
 		self.dlsa = DLSABlock(d_embed=d_embed)
 		self.layer_norm = None
 		if layer_norm:
@@ -189,8 +231,11 @@ class DLPTBlock(nn.Module):
 		# [1] Decoupled Local Self Attention
 		if cluster_batchdict is None:
 			cluster_batchdict = get_cluster_idxes(pos, kmeans_ratio=self.kmeans_ratio)
+
 		h_pos, h_geo = self.lpe(pos, feat, cluster_batchdict)
+
 		feat_out = self.dlsa(h_pos, h_geo, cluster_batchdict)
+
 		if self.dropout1 is not None:
 			feat_out = self.dropout1(feat_out)
 
@@ -210,51 +255,52 @@ class DLPTBlock(nn.Module):
 		return feat_out
 
 
-class DLPTBlock_PreLN(nn.Module):
-	'''
-	Decoupled Local Point Transformer Block with Pre Layer-Normalization
-	'''
-	def __init__(self, kmeans_ratio=16, d_feat=3, d_pos_embed=10, d_embed=32, layer_norm=True):
-		super(DLPTBlock_PreLN, self).__init__()
-		self.kmeans_ratio = kmeans_ratio
-		self.d_pos = 3
-		self.d_pos_embed = d_pos_embed
-		self.d_embed = d_embed
-		self.lpe = LPEBlock(d_feat=d_feat, d_pos_embed=d_pos_embed, d_embed=d_embed)
-		self.dlsa = DLSABlock(d_embed=d_embed)
-		self.layer_norm = None
-		if layer_norm:
-			self.layer_norm = layer_norm
-			self.ln11 = nn.LayerNorm(self.d_embed)
-			self.ln12 = nn.LayerNorm(self.d_embed)
-			self.ln2 = nn.LayerNorm(self.d_embed)
-		self.ff = nn.Sequential(nn.Linear(d_embed, d_embed*4),
-								nn.ReLU(),
-								nn.Linear(d_embed*4, d_embed))
+# class DLPTBlock_PreLN(nn.Module):
+# 	'''
+# 	Decoupled Local Point Transformer Block with Pre Layer-Normalization
+# 	'''
+# 	def __init__(self, kmeans_ratio=16, d_feat=3, d_pos_embed=10, d_embed=32, layer_norm=True):
+# 		super(DLPTBlock_PreLN, self).__init__()
+# 		self.kmeans_ratio = kmeans_ratio
+# 		self.d_pos = 3
+# 		self.d_pos_embed = d_pos_embed
+# 		self.d_embed = d_embed
+# 		self.lpe = LPEBlock(d_feat=d_feat, d_pos_embed=d_pos_embed, d_embed=d_embed)
+# 		self.dlsa = DLSABlock(d_embed=d_embed)
+# 		self.layer_norm = None
+# 		if layer_norm:
+# 			self.layer_norm = layer_norm
+# 			self.ln11 = nn.LayerNorm(self.d_embed)
+# 			self.ln12 = nn.LayerNorm(self.d_embed)
+# 			self.ln2 = nn.LayerNorm(self.d_embed)
+# 		self.ff = nn.Sequential(nn.Linear(d_embed, d_embed*4),
+# 								nn.ReLU(),
+# 								nn.Linear(d_embed*4, d_embed))
 
 
 
-	def forward(self, pos, feat, cluster_batchdict):
-		# [1] Decoupled Local Self Attention
-		if cluster_batchdict is None:
-			cluster_batchdict = get_cluster_idxes(pos, kmeans_ratio=self.kmeans_ratio)
-		h_pos, h_geo = self.lpe(pos, feat, cluster_batchdict)
-		try:
-			h_pos_dlsa = self.ln11(h_pos)
-			h_geo_dlsa = self.ln12(h_geo)
-		except torch.nn.modules.module.ModuleAttributeError:
-			print("PreLN requires Layer norm. Check if you set layer_norm as false in model configuration yaml")
-		feat_out = self.dlsa(h_pos_dlsa, h_geo_dlsa, cluster_batchdict)
+# 	def forward(self, pos, feat, cluster_batchdict):
+# 		# [1] Decoupled Local Self Attention
+# 		if cluster_batchdict is None:
+# 			cluster_batchdict = get_cluster_idxes(pos, kmeans_ratio=self.kmeans_ratio)
+
+# 		h_pos, h_geo = self.lpe(pos, feat, cluster_batchdict)
+# 		try:
+# 			h_pos_dlsa = self.ln11(h_pos)
+# 			h_geo_dlsa = self.ln12(h_geo)
+# 		except torch.nn.modules.module.ModuleAttributeError:
+# 			print("PreLN requires Layer norm. Check if you set layer_norm as false in model configuration yaml")
+# 		feat_out = self.dlsa(h_pos_dlsa, h_geo_dlsa, cluster_batchdict)
 		
-		# [2] Skip connection 
-		feat_out = h_pos + feat_out
+# 		# [2] Skip connection 
+# 		feat_out = h_pos + feat_out
  
 		
-		# [3] Feed Forward & Skip connection + Layer Norm
-		final_out = self.ln2(self.ff(feat_out))
-		final_out = final_out + feat_out
+# 		# [3] Feed Forward & Skip connection + Layer Norm
+# 		final_out = self.ln2(self.ff(feat_out))
+# 		final_out = final_out + feat_out
 
-		return feat_out
+# 		return feat_out
 		
 
 
@@ -296,17 +342,15 @@ class LPEBlock(nn.Module):
 	'''
 	Local Position Embedding Block
 	'''
-	def __init__(self, d_feat, d_pos_embed, d_embed):
+	def __init__(self, d_embed):
 		super(LPEBlock, self).__init__()
 		self.kmeans_ratio = 8
-		self.d_pos = 3
-		self.d_feat = d_feat
-		self.d_pos_embed = d_pos_embed
 		self.d_embed = d_embed
-		self.mlp_1a = self._make_embedding_layers(self.d_pos+1, d_pos_embed)
-		self.mlp_1b = self._make_embedding_layers(d_pos_embed + d_feat, d_embed)
-		self.mlp_2a = self._make_embedding_layers(self.d_pos*2, d_pos_embed)
-		self.mlp_2b = self._make_embedding_layers(d_pos_embed + d_feat, d_embed)
+		self.d_pos = 3
+		self.mlp_1a = self._make_embedding_layers(4, d_embed)
+		# self.mlp_1b = self._make_embedding_layers(d_pos_embed + d_feat, d_embed)
+		self.mlp_2a = self._make_embedding_layers(6, d_embed)
+		# self.mlp_2b = self._make_embedding_layers(d_pos_embed + d_feat, d_embed)
 
 
 	def forward(self, pos, feat, kmeans_idx_dict_batchlist):
@@ -342,14 +386,14 @@ class LPEBlock(nn.Module):
 		return h_pos, h_geo
 
 
-	def _make_embedding_layers(self, d_in, d_out, layer_norm=False, relu=True):
+	def _make_embedding_layers(self, d_in, d_embed, layer_norm=False, relu=True):
 		modules=[]
-		modules.append(nn.Linear(d_in, d_out))
+		modules.append(nn.Linear(d_in, d_embed))
 		if layer_norm:
-			modules.append(nn.LayerNorm(d_out))
+			modules.append(nn.LayerNorm(d_embed))
 		if relu:
 			modules.append(nn.ReLU())
-			modules.append(nn.Linear(d_out, d_out))
+			modules.append(nn.Linear(d_embed, d_embed))
 
 		sequential = nn.Sequential(*modules)
 		return sequential
@@ -359,16 +403,20 @@ class LPEBlock(nn.Module):
 		cog = torch.mean(p, dim=0, keepdim=True)
 		local_p = p - cog
 		n = torch.norm(local_p, dim=1, keepdim=True)
-		r = self.mlp_1a(torch.cat((local_p, n), dim=1))
+		# r = self.mlp_1a(torch.cat((local_p, n), dim=1))
+		embed_pos = self.mlp_1a(torch.cat((local_p, n), dim=1))
 		
 		## [1] Relative Position Embedding
-		h_pos = self.mlp_1b(torch.cat((r, f), dim=1))
+		# h_pos = self.mlp_1b(torch.cat((r, f), dim=1))
+		h_pos = f + embed_pos
 
 
 		## [2] Relative Geometry Embedding 
 		avg = torch.mean(local_p, dim=0, keepdim=True)
-		r_hat = self.mlp_2a(torch.cat((avg.expand(local_p.shape), local_p), dim=1))
-		h_geo = self.mlp_2b(torch.cat((r_hat, f), dim=1))
+		embed_geo = self.mlp_2a(torch.cat((avg.expand(local_p.shape), local_p), dim=1))
+		# h_geo = self.mlp_2b(torch.cat((r_hat, f), dim=1))
+		h_geo = f + embed_geo
+
 		return h_pos, h_geo
 
 
@@ -429,3 +477,10 @@ def faissKNN(index, query, k):
 
 	# end_time = time.time()
 	# print("Time (sec) to conduct KNN per pc: ", end_time - start_time)
+
+def gather_by_idx(db, q_idx):
+	db_flipped = torch.einsum("ijk->ikj", db).contiguous()
+	db = pt_utils.gather_operation(db_flipped, q_idx)
+	db = torch.einsum("ijk->ikj", db).contiguous()
+
+	return db

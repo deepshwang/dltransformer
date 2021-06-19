@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 
-from models.modules import DLPTNet_cls, DLPTNet_PreLN_cls
+from models.modules import DLPTNet_cls
 from dataset.ModelNet40 import ModelNet40DataLoader
 from dataset.transforms import T_modelnet_train as T_train
 from dataset.transforms import T_modelnet_test as T_test
@@ -186,11 +186,8 @@ def main(args):
 										   shuffle=False,
 										   train=False,
 										   transforms=T_test, k=k, d=d, e=e)
-	if args.pre_ln:
-		model = DLPTNet_PreLN_cls(open_yaml(args.DLPT_config)['layer_params'][args.model_config_type], c=40)
-		print("PreLN Mode")
-	else:
-		model = DLPTNet_cls(open_yaml(args.DLPT_config)['layer_params'][args.model_config_type], c=40)
+
+	model = DLPTNet_cls(open_yaml(args.DLPT_config)['layer_params'][args.model_config_type], c=40)
 
 
 	optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
